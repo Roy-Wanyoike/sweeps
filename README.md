@@ -72,6 +72,16 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
 - **Shareable deep links.** The dashboard syncs `?show=…&tab=…&ep=…` into the URL as you navigate;
   the header link button copies the exact view. Open a link and you land on that show, tab and
   episode — built for judge walkthroughs.
+- **Present mode (read-only).** Append `?view=1` (or hit the header **Present** button) to turn the
+  dashboard into a read-only screening room: Run/New Show/Gate-test/Re-compile/Regenerate controls
+  disappear and mutating shortcuts are disabled — while **"Rate it" stays live**, so a judge can
+  still join the human panel from the shared link.
+- **Cohort retention explorer.** Per-archetype retention curves for any episode: keepers vs churners
+  are pre-selected (top-2 + bottom-2), every archetype is toggleable, and a ranked keep-rate board
+  shows each cohort's delta vs the panel average — "who churns, and where" in one glance.
+- **Arm-by-episode receipt.** The Experiment tab adds a full A/B receipt table (retention, Δ pts
+  color-scaled, spend, cost-per-retained-viewer trend) plus a verdict sparkline and Thompson
+  reward-split bars — every number the optimizer saw, printable for judges.
 - **Stage-aware budget bar.** The header budget meter is segmented by pipeline stage
   (render/writer/audience/optimizer), so governance caps are visible at a glance.
 

@@ -32,6 +32,12 @@ const GROUPS: { title: string; keys: { combo: string; action: string }[] }[] = [
       { combo: 'Esc', action: 'Close dialogs' },
     ],
   },
+  {
+    title: 'Sharing',
+    keys: [
+      { combo: '?view=1', action: 'Present mode — read-only link' },
+    ],
+  },
 ];
 
 export function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -44,7 +50,7 @@ export function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenC
           </DialogTitle>
           <DialogDescription>Drive the whole studio without leaving the keyboard.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {GROUPS.map((g) => (
             <div key={g.title} className="grid content-start gap-1.5">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g.title}</div>

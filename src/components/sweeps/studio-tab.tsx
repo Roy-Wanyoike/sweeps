@@ -2,6 +2,7 @@
 
 import { jparse } from '@/lib/contracts';
 import { ShowDetail, useRegenPanel } from '@/lib/queries';
+import { useSweeps } from '@/lib/store';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +30,7 @@ const STAGE_CAPS: Record<string, number> = {
 };
 
 export function StudioTab({ detail }: { detail: ShowDetail }) {
+  const readonly = useSweeps((s) => s.readonly);
   const regen = useRegenPanel(detail.show.id);
   const budget = detail.budget;
 
@@ -113,14 +115,18 @@ export function StudioTab({ detail }: { detail: ShowDetail }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={regen.isPending}
-              onClick={() => regen.mutate(undefined, { onError: (e) => toast.error(e.message) })}
-            >
-              {regen.isPending ? 'Regenerating…' : 'Regenerate panel'}
-            </Button>
+            {readonly ? (
+              <p className="text-xs text-muted-foreground">Panel is seeded and read-only in present mode.</p>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={regen.isPending}
+                onClick={() => regen.mutate(undefined, { onError: (e) => toast.error(e.message) })}
+              >
+                {regen.isPending ? 'Regenerating…' : 'Regenerate panel'}
+              </Button>
+            )}
           </CardContent>
         </Card>
 

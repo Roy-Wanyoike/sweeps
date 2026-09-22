@@ -17,6 +17,14 @@ export interface Segment {
   n: number;
 }
 
+/** Per-archetype cohort: full per-beat retention curve (for the cohort explorer). */
+export interface Cohort {
+  archetype: string;
+  n: number;
+  keepRate: number;
+  curve: { beat: number; retention: number }[];
+}
+
 export interface Metrics {
   episodeId: string;
   arm: string;
@@ -26,6 +34,7 @@ export interface Metrics {
   km: { beat: number; survival: number }[];
   cliffs: Cliff[];
   segments: Segment[];
+  cohorts: Cohort[];
   overall: number;
   meanSatisfaction: number;
   costPerRetainedViewer: number;
@@ -85,6 +94,25 @@ export async function computeMetrics(episodeId: string): Promise<Metrics | null>
     .map(([archetype, v]) => ({ archetype, keepRate: Number((v.keep / v.n).toFixed(4)), n: v.n }))
     .sort((a, b) => b.keepRate - a.keepRate);
 
+  // per-archetype cohort curves (who churns where, not just who churns)
+  const cohortCurves = new Map<string, { beat: number; retention: number }[]>();
+  for (const seg of segments) {
+    const viewers = screenings.filter((s) => s.viewer.archetype === seg.archetype);
+    cohortCurves.set(
+      seg.archetype,
+      curve.map((c) => {
+        const still = viewers.filter((s) => s.dropAtBeat === null || s.dropAtBeat > c.beat).length;
+        return { beat: c.beat, retention: Number((still / Math.max(1, viewers.length)).toFixed(4)) };
+      })
+    );
+  }
+  const cohorts: Cohort[] = segments.map((seg) => ({
+    archetype: seg.archetype,
+    n: seg.n,
+    keepRate: seg.keepRate,
+    curve: cohortCurves.get(seg.archetype) ?? [],
+  }));
+
   const overall = curve.length ? curve[curve.length - 1].retention : 0;
   const meanSatisfaction = screenings.length
     ? screenings.reduce((a, s) => a + s.satisfaction, 0) / screenings.length
@@ -112,6 +140,7 @@ export async function computeMetrics(episodeId: string): Promise<Metrics | null>
     km,
     cliffs,
     segments,
+    cohorts,
     overall: Number(overall.toFixed(4)),
     meanSatisfaction: Number(meanSatisfaction.toFixed(4)),
     costPerRetainedViewer: Number(costPerRetainedViewer.toFixed(4)),

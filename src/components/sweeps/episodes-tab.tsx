@@ -63,6 +63,7 @@ function stepIndex(status: string): number {
 
 export function EpisodesTab({ detail }: { detail: ShowDetail }) {
   const activeArm = useSweeps((s) => s.activeArm);
+  const readonly = useSweeps((s) => s.readonly);
   const setArm = useSweeps((s) => s.setArm);
   const selectedEpisodeId = useSweeps((s) => s.selectedEpisodeId);
   const selectEpisode = useSweeps((s) => s.selectEpisode);
@@ -102,47 +103,55 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
-            {detail.show.mode === 'DUAL' && (
-              <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Arm selection">
-                {(['A', 'B'] as const).map((arm) => (
-                  <button
-                    key={arm}
-                    role="tab"
-                    aria-selected={activeArm === arm}
-                    onClick={() => setArm(arm)}
-                    className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
-                      activeArm === arm ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {arm === 'A' ? 'A · Control' : 'B · Optimized'}
-                  </button>
-                ))}
-              </div>
+            {readonly ? (
+              <p className="rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                Present mode — run controls hidden. Open the owner link to make episodes.
+              </p>
+            ) : (
+              <>
+                {detail.show.mode === 'DUAL' && (
+                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Arm selection">
+                    {(['A', 'B'] as const).map((arm) => (
+                      <button
+                        key={arm}
+                        role="tab"
+                        aria-selected={activeArm === arm}
+                        onClick={() => setArm(arm)}
+                        className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                          activeArm === arm ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {arm === 'A' ? 'A · Control' : 'B · Optimized'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Button onClick={runNext} disabled={busy || runEpisode.isPending}>
+                  {busy ? (
+                    <>
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden /> Pipeline running…
+                    </>
+                  ) : (
+                    <>
+                      <Clapperboard className="mr-1 h-4 w-4" aria-hidden /> Run next episode
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    gateTest.mutate(current ?? '', {
+                      onSuccess: (r) => setGateReport(r.report),
+                      onError: (e) => toast.error(e.message),
+                    })
+                  }
+                  disabled={!current || gateTest.isPending}
+                >
+                  <FlaskConical className="mr-1 h-4 w-4" aria-hidden /> Test the Gate (bad script)
+                </Button>
+              </>
             )}
-            <Button onClick={runNext} disabled={busy || runEpisode.isPending}>
-              {busy ? (
-                <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden /> Pipeline running…
-                </>
-              ) : (
-                <>
-                  <Clapperboard className="mr-1 h-4 w-4" aria-hidden /> Run next episode
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                gateTest.mutate(current ?? '', {
-                  onSuccess: (r) => setGateReport(r.report),
-                  onError: (e) => toast.error(e.message),
-                })
-              }
-              disabled={!current || gateTest.isPending}
-            >
-              <FlaskConical className="mr-1 h-4 w-4" aria-hidden /> Test the Gate (bad script)
-            </Button>
           </CardContent>
         </Card>
 
@@ -223,7 +232,7 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
               </CardContent>
             </Card>
 
-            <CompileReportCard report={ep.compileReport} repairLoops={ep.episode.repairLoops} onRecompile={() => recompile.mutate(current, { onError: (e) => toast.error(e.message) })} />
+            <CompileReportCard report={ep.compileReport} repairLoops={ep.episode.repairLoops} readonly={readonly} onRecompile={() => recompile.mutate(current, { onError: (e) => toast.error(e.message) })} />
 
             <StoryboardStrip detail={ep} />
           </>
@@ -350,10 +359,12 @@ function CompileReportCard({
   report,
   repairLoops,
   onRecompile,
+  readonly,
 }: {
   report: CompileReport | null;
   repairLoops: number;
   onRecompile: () => void;
+  readonly?: boolean;
 }) {
   return (
     <Card>
@@ -365,9 +376,11 @@ function CompileReportCard({
           <CardDescription>8 deterministic rules · zero AI · runs before any generation spend</CardDescription>
         </div>
         <div data-slot="card-action">
-          <Button size="sm" variant="outline" onClick={onRecompile} title="Re-run the 8 deterministic rules against this script">
-            <ShieldCheck className="mr-1 h-3.5 w-3.5" aria-hidden /> Re-compile
-          </Button>
+          {!readonly && (
+            <Button size="sm" variant="outline" onClick={onRecompile} title="Re-run the 8 deterministic rules against this script">
+              <ShieldCheck className="mr-1 h-3.5 w-3.5" aria-hidden /> Re-compile
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>

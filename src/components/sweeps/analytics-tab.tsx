@@ -18,11 +18,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Download, Flame, Grid3X3, TrendingDown } from 'lucide-react';
+import { Download, Flame, Grid3X3, TrendingDown, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
-const COLORS = ['#d97706', '#e11d48', '#0d9488', '#ea580c', '#16a34a', '#a21caf'];
+const COLORS = ['#d97706', '#e11d48', '#0d9488', '#ea580c', '#16a34a', '#a21caf', '#f59e0b', '#be123c', '#0f766e', '#c2410c', '#15803d', '#86198f'];
 const ARM_COLOR: Record<string, string> = { A: '#0d9488', B: '#d97706' };
+const COHORT_PALETTE = ['#d97706', '#0d9488', '#e11d48', '#16a34a', '#a21caf', '#ea580c', '#0f766e', '#be123c', '#f59e0b', '#15803d', '#86198f', '#c2410c'];
 
 /** retention 0..1 → warm color (low = rose, high = emerald) */
 function heatColor(r: number): string {
@@ -49,6 +50,10 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
   const episodes = data?.episodes ?? [];
   const [focusId, setFocusId] = useState<string | null>(null);
   const focus = episodes.find((m) => m.episodeId === focusId) ?? episodes[episodes.length - 1];
+  // cohort explorer state
+  const [cohortEpId, setCohortEpId] = useState<string | null>(null);
+  const cohortEp = episodes.find((m) => m.episodeId === cohortEpId) ?? episodes[episodes.length - 1];
+  const [cohortEnabled, setCohortEnabled] = useState<Record<string, boolean>>({});
 
   const retentionData = useMemo(() => {
     if (episodes.length === 0) return [];
@@ -85,6 +90,43 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
     const maxBeat = episodes.length ? Math.max(...episodes.map((m) => m.curve.length)) : 0;
     return episodes.map((m) => ({ m, cells: m.curve.map((c) => c.retention) , maxBeat }));
   }, [episodes]);
+
+  // ---- cohort explorer data ----
+  const cohortEpisodes = useMemo(
+    () => episodes.filter((m) => (m.cohorts?.length ?? 0) > 0),
+    [episodes]
+  );
+  // default selection: top-2 keepers + bottom-2 churners (the interesting extremes)
+  const defaultCohortOn = (index: number, total: number): boolean =>
+    total <= 4 ? true : index < 2 || index >= total - 2;
+  const activeCohorts = useMemo(() => {
+    if (!cohortEp) return [];
+    return cohortEp.cohorts.filter(
+      (c, i) => cohortEnabled[c.archetype] ?? defaultCohortOn(i, cohortEp.cohorts.length)
+    );
+  }, [cohortEp, cohortEnabled]);
+
+  const cohortChartData = useMemo(() => {
+    if (!cohortEp) return [];
+    const beats = cohortEp.curve.map((c) => c.beat);
+    return beats.map((b) => {
+      const row: Record<string, number> = {
+        beat: b,
+        overall: Number((((cohortEp.curve.find((c) => c.beat === b)?.retention) ?? 0) * 100).toFixed(1)),
+      };
+      for (const c of activeCohorts) {
+        const point = c.curve.find((p) => p.beat === b);
+        if (point) row[c.archetype] = Number((point.retention * 100).toFixed(1));
+      }
+      return row;
+    });
+  }, [cohortEp, activeCohorts]);
+
+  const cohortYDomain = useMemo<[number, number]>(() => {
+    const vals = cohortChartData.flatMap((r) => Object.entries(r).filter(([k]) => k !== 'beat').map(([, v]) => v));
+    if (!vals.length) return [0, 100];
+    return [Math.max(0, Math.floor((Math.min(...vals) - 8) / 5) * 5), Math.min(100, Math.ceil((Math.max(...vals) + 4) / 5) * 5)];
+  }, [cohortChartData]);
 
   const exportCsv = () => {
     if (!episodes.length) return;
@@ -211,6 +253,134 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
                   <div className="h-2 w-40 rounded-sm bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-500" aria-hidden />
                   high retention
                 </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="lg:col-span-2">
+        <CardHeader className="pb-2">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4 text-primary" aria-hidden /> Cohort retention explorer
+            </CardTitle>
+            <CardDescription>
+              Same episode, different tastes — per-archetype retention curves. Toggle cohorts, spot who churns where.
+            </CardDescription>
+          </div>
+          {cohortEpisodes.length > 1 && (
+            <div data-slot="card-action" className="flex flex-wrap gap-1.5">
+              {cohortEpisodes.map((m) => (
+                <button
+                  key={m.episodeId}
+                  onClick={() => setCohortEpId(m.episodeId)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    cohortEp?.episodeId === m.episodeId
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }`}
+                  aria-pressed={cohortEp?.episodeId === m.episodeId}
+                >
+                  Ep{m.number} ({m.arm})
+                </button>
+              ))}
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {!cohortEp ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Run episodes to explore cohorts.</p>
+          ) : (
+            <div className="grid gap-4">
+              <div className="h-60">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={cohortChartData} margin={{ top: 5, right: 12, bottom: 0, left: -18 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" />
+                    <XAxis dataKey="beat" tick={{ fontSize: 11 }} label={{ value: 'beat', position: 'insideBottomRight', offset: -2, fontSize: 10 }} />
+                    <YAxis domain={cohortYDomain} tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      formatter={(v) => [`${v}% still watching`]}
+                      labelFormatter={(l) => `Beat ${l}`}
+                      contentStyle={{ borderRadius: 10, borderColor: 'rgba(0,0,0,0.1)' }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="overall"
+                      stroke="#78716c"
+                      strokeWidth={2.8}
+                      strokeDasharray="5 3"
+                      dot={false}
+                      name="panel overall"
+                    />
+                    {activeCohorts.map((c, i) => (
+                      <Line
+                        key={c.archetype}
+                        type="monotone"
+                        dataKey={c.archetype}
+                        stroke={COHORT_PALETTE[cohortEp.cohorts.findIndex((x) => x.archetype === c.archetype) % COHORT_PALETTE.length] ?? COLORS[i % COLORS.length]}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 3 }}
+                        name={c.archetype}
+                      />
+                    ))}
+                    <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Toggle cohorts">
+                {cohortEp.cohorts.map((c, i) => {
+                  const on = cohortEnabled[c.archetype] ?? defaultCohortOn(i, cohortEp.cohorts.length);
+                  const color = COHORT_PALETTE[i % COHORT_PALETTE.length];
+                  return (
+                    <button
+                      key={c.archetype}
+                      onClick={() => setCohortEnabled((s) => ({ ...s, [c.archetype]: !on }))}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                        on ? 'border-foreground/20 bg-muted text-foreground shadow-sm' : 'border-transparent bg-muted/50 text-muted-foreground hover:text-foreground'
+                      }`}
+                      aria-pressed={on}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color, opacity: on ? 1 : 0.35 }} aria-hidden />
+                      {c.archetype}
+                      <span className="text-muted-foreground">×{c.n}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {cohortEp.cohorts.map((c, i) => {
+                  const delta = c.keepRate - cohortEp.overall;
+                  const color = COHORT_PALETTE[i % COHORT_PALETTE.length];
+                  return (
+                    <div key={c.archetype} className="flex items-center gap-2 rounded-lg border px-2.5 py-1.5">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-xs font-medium">{c.archetype}</span>
+                          <span className="shrink-0 font-mono text-[11px]">{(c.keepRate * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${Math.max(4, c.keepRate * 100)}%`, backgroundColor: color }}
+                          />
+                        </div>
+                      </div>
+                      <span
+                        className={`w-14 shrink-0 text-right font-mono text-[10px] ${
+                          delta >= 0.02 ? 'text-emerald-600 dark:text-emerald-400' : delta <= -0.02 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'
+                        }`}
+                      >
+                        {delta >= 0 ? '+' : ''}
+                        {(delta * 100).toFixed(1)} pts
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -43,6 +43,7 @@ const TAB_META: { key: TabKey; label: string; icon: React.ComponentType<{ classN
 
 function Landing() {
   const create = useCreateShow();
+  const readonly = useSweeps((s) => s.readonly);
   const setShow = useSweeps((s) => s.setShow);
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center gap-6 py-16 text-center sm:py-20">
@@ -70,23 +71,31 @@ function Landing() {
         ))}
       </div>
       <div className="flex flex-wrap justify-center gap-3">
-        <Button
-          size="lg"
-          disabled={create.isPending}
-          onClick={() =>
-            create.mutate(
-              { premise: DEMO_PREMISE, mode: 'DUAL', episodeCount: 3, budgetUsd: 5, panelSize: 200 },
-              {
-                onSuccess: (r) => setShow(r.id),
-                onError: (e) => toast.error(e.message),
+        {readonly ? (
+          <p className="rounded-lg border border-dashed bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+            Present mode — create a show from the owner link.
+          </p>
+        ) : (
+          <>
+            <Button
+              size="lg"
+              disabled={create.isPending}
+              onClick={() =>
+                create.mutate(
+                  { premise: DEMO_PREMISE, mode: 'DUAL', episodeCount: 3, budgetUsd: 5, panelSize: 200 },
+                  {
+                    onSuccess: (r) => setShow(r.id),
+                    onError: (e) => toast.error(e.message),
+                  }
+                )
               }
-            )
-          }
-        >
-          <Sparkles className="mr-2 h-4 w-4" aria-hidden />
-          {create.isPending ? 'Generating bible…' : 'Create the demo show'}
-        </Button>
-        <CreateShowDialog />
+            >
+              <Sparkles className="mr-2 h-4 w-4" aria-hidden />
+              {create.isPending ? 'Generating bible…' : 'Create the demo show'}
+            </Button>
+            <CreateShowDialog />
+          </>
+        )}
       </div>
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         Power user? Press <Kbd>?</Kbd> for keyboard shortcuts.
@@ -98,6 +107,7 @@ function Landing() {
 function Dashboard({ onShortcuts }: { onShortcuts: () => void }) {
   const activeShowId = useSweeps((s) => s.activeShowId);
   const activeTab = useSweeps((s) => s.activeTab);
+  const readonly = useSweeps((s) => s.readonly);
   const setTab = useSweeps((s) => s.setTab);
   const setArm = useSweeps((s) => s.setArm);
   const selectEpisode = useSweeps((s) => s.selectEpisode);
@@ -142,6 +152,7 @@ function Dashboard({ onShortcuts }: { onShortcuts: () => void }) {
       if (!detail) return;
       if (k === 'a' || k === 'A') setArm('A');
       if (k === 'b' || k === 'B') setArm('B');
+      if (readonly) return; // present mode: no mutating shortcuts (E / Shift+D)
       if (k === 'e' || k === 'E') {
         setTab('episodes');
         fetch(`/api/shows/${detail.show.id}/episodes`, {
@@ -165,7 +176,7 @@ function Dashboard({ onShortcuts }: { onShortcuts: () => void }) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [detail, onShortcuts, runDemo, setArm, setTab, setTheme, selectEpisode, theme]);
+  }, [detail, onShortcuts, readonly, runDemo, setArm, setTab, setTheme, selectEpisode, theme]);
 
   if (isLoading || !detail) {
     return (

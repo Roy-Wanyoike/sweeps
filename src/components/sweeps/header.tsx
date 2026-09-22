@@ -2,13 +2,14 @@
 
 import { useHealth, useLedger, useRunDemo, useShow, useShowAnalytics, useShows } from '@/lib/queries';
 import { useSweeps } from '@/lib/store';
+import { enterPresentMode, exitPresentMode } from '@/lib/url-sync';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreateShowDialog } from './create-show-dialog';
-import { Clapperboard, Link2, Moon, PlayCircle, Sun } from 'lucide-react';
+import { Clapperboard, Link2, MonitorPlay, Moon, PlayCircle, Sun, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 
@@ -59,6 +60,7 @@ export function Header({ onShortcuts }: { onShortcuts?: () => void }) {
   const { data: health } = useHealth();
   const { data: showsData } = useShows();
   const activeShowId = useSweeps((s) => s.activeShowId);
+  const readonly = useSweeps((s) => s.readonly);
   const setShow = useSweeps((s) => s.setShow);
   const { data: show } = useShow(activeShowId);
   const { data: ledger, isLoading: ledgerLoading } = useLedger(activeShowId);
@@ -126,21 +128,52 @@ export function Header({ onShortcuts }: { onShortcuts?: () => void }) {
               pipeline running{show && show.runner.queued > 0 ? ` · ${show.runner.queued} queued` : ''}
             </Badge>
           )}
-          <Button
-            size="sm"
-            onClick={() =>
-              runDemo.mutate(undefined, {
-                onSuccess: (r) => toast.success(`Demo queued: ${r.queued} episodes (control + treatment)`),
-                onError: (e) => toast.error(e.message),
-              })
-            }
-            disabled={!activeShowId || runDemo.isPending}
-            title="Run the full dual-arm demo (Shift+D)"
-          >
-            <PlayCircle className="mr-1 h-4 w-4" aria-hidden />
-            Run Full Demo
-          </Button>
-          <CreateShowDialog />
+          {readonly ? (
+            <Badge variant="secondary" className="gap-1.5 border border-primary/30 bg-primary/10 text-primary" title="Read-only present mode — run controls are hidden">
+              <MonitorPlay className="h-3.5 w-3.5" aria-hidden /> PRESENT MODE
+              <button
+                onClick={exitPresentMode}
+                className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-primary/20"
+                aria-label="Exit present mode"
+                title="Exit present mode"
+              >
+                <X className="h-3 w-3" aria-hidden />
+              </button>
+            </Badge>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                onClick={() =>
+                  runDemo.mutate(undefined, {
+                    onSuccess: (r) => toast.success(`Demo queued: ${r.queued} episodes (control + treatment)`),
+                    onError: (e) => toast.error(e.message),
+                  })
+                }
+                disabled={!activeShowId || runDemo.isPending}
+                title="Run the full dual-arm demo (Shift+D)"
+              >
+                <PlayCircle className="mr-1 h-4 w-4" aria-hidden />
+                Run Full Demo
+              </Button>
+              <CreateShowDialog />
+            </>
+          )}
+          {!readonly && (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="Enter present mode"
+              title="Enter present mode — hides all run controls for sharing / demos"
+              onClick={() => {
+                enterPresentMode();
+                toast.success('Present mode on', { description: 'Run controls hidden. “Rate it” stays available for the human panel.' });
+              }}
+            >
+              <MonitorPlay className="h-4 w-4" aria-hidden />
+              <span className="hidden sm:inline">Present</span>
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"

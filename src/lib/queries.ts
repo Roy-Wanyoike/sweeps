@@ -135,6 +135,7 @@ export interface MetricsData {
     km: { beat: number; survival: number }[];
     cliffs: { beat: number; type: string; title: string; delta: number; quote?: string; sentiment?: string }[];
     segments: { archetype: string; keepRate: number; n: number }[];
+    cohorts: { archetype: string; n: number; keepRate: number; curve: { beat: number; retention: number }[] }[];
     overall: number;
     meanSatisfaction: number;
     costPerRetainedViewer: number;
