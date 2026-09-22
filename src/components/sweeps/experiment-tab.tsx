@@ -5,6 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowUpRight, FlaskConical, Scale } from 'lucide-react';
 
+/** Micro-cost formatting: values are often a few tenths of a cent. */
+function formatMicroUsd(v: number): string {
+  if (v > 0 && v < 0.01) return `$${v.toFixed(4)}`;
+  return `$${v.toFixed(3)}`;
+}
+
 export function ExperimentTab({ showId }: { showId: string }) {
   const { data } = useExperiments(showId);
   const verdict = data?.verdict.verdict;
@@ -42,13 +48,13 @@ export function ExperimentTab({ showId }: { showId: string }) {
                 <div className="rounded-lg border p-2.5">
                   <div className="text-[10px] uppercase text-muted-foreground">cost / retained viewer</div>
                   <div className="mt-0.5">
-                    A ${verdict.avgCostPerRV_A.toFixed(3)} · B ${verdict.avgCostPerRV_B.toFixed(3)}
+                    A {formatMicroUsd(verdict.avgCostPerRV_A)} · B {formatMicroUsd(verdict.avgCostPerRV_B)}
                   </div>
                 </div>
                 <div className="rounded-lg border p-2.5">
                   <div className="text-[10px] uppercase text-muted-foreground">avg spend / episode</div>
                   <div className="mt-0.5">
-                    A ${verdict.avgSpend_A.toFixed(3)} · B ${verdict.avgSpend_B.toFixed(3)}
+                    A {formatMicroUsd(verdict.avgSpend_A)} · B {formatMicroUsd(verdict.avgSpend_B)}
                   </div>
                 </div>
               </div>

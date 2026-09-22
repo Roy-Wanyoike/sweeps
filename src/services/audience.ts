@@ -113,7 +113,13 @@ export function singleBeatSatisfaction(
 ): number {
   const aff = persona.affinities[beat.type] ?? 0.5;
   const novelty = 1 - clamp(tropeStrength, 0, 1);
-  return clamp(0.15 * beat.qualitySelfScore + 0.45 * aff + 0.25 * novelty, 0, 1);
+  // Idiosyncratic taste: deterministic per (persona, beat content). This makes the
+  // model read the beat's actual text (title, purpose, dialogue) — so two A/B
+  // variants of the same slot type score differently, as they must.
+  const contentKey = `${beat.title}~${beat.purpose}~${beat.dialogue.map((d) => d.line).join(' ')}`;
+  const taste = hashSeed(persona.seed, 'taste', contentKey) / 0x7fffffff; // 0..1
+  const contentAffinity = 0.15 * (2 * taste - 1); // -0.15..+0.15
+  return clamp(0.15 * beat.qualitySelfScore + 0.45 * aff + 0.25 * novelty + contentAffinity, 0, 1);
 }
 
 export function simulateWatch(
@@ -186,16 +192,21 @@ export async function simulateScreening(episodeId: string): Promise<number> {
 
   const viewers = await db.viewer.findMany({ where: { showId: episode.showId } });
   const epNumber = episode.number;
+  const arm = episode.arm;
   const rows: {
     episodeId: string; viewerId: string; seed: number; keepWatching: boolean;
     dropAtBeat: number | null; satisfaction: number; events: string;
   }[] = [];
-  const memoryUpdates: { viewerId: string; key: string; content: string; stability: number; lastSeenEp: number }[] = [];
+  const memoryUpdates: {
+    viewerId: string; arm: string; key: string; content: string; stability: number; lastSeenEp: number;
+  }[] = [];
 
   for (const viewer of viewers) {
     const persona = jparse<ViewerPersona>(viewer.persona, null as unknown as ViewerPersona);
     if (!persona) continue;
-    const memories = await db.viewerMemory.findMany({ where: { viewerId: viewer.id } });
+    // arm-scoped memories: each arm is a parallel timeline with its own continuity,
+    // so the paired premiere screens against a pristine memory state in BOTH arms
+    const memories = await db.viewerMemory.findMany({ where: { viewerId: viewer.id, arm } });
     const sim = simulateWatch(persona, beats, memories, epNumber);
     rows.push({
       episodeId,
@@ -212,6 +223,7 @@ export async function simulateScreening(episodeId: string): Promise<number> {
       const impact = IMPACT[beat.type] ?? 0.4;
       memoryUpdates.push({
         viewerId: viewer.id,
+        arm,
         key: `trope:${beat.type}`,
         content: beat.title,
         stability: 0.5 + impact / 2,
@@ -220,6 +232,7 @@ export async function simulateScreening(episodeId: string): Promise<number> {
       if (beat.type === 'CLIFFHANGER') {
         memoryUpdates.push({
           viewerId: viewer.id,
+          arm,
           key: 'cliffhanger:last',
           content: beat.title,
           stability: 0.95,
@@ -228,6 +241,7 @@ export async function simulateScreening(episodeId: string): Promise<number> {
       } else if (beat.type !== 'HOOK') {
         memoryUpdates.push({
           viewerId: viewer.id,
+          arm,
           key: `plot:ep${epNumber}:b${beat.index}`,
           content: beat.title,
           stability: 0.5 + impact / 2,
@@ -255,7 +269,7 @@ export async function simulateScreening(episodeId: string): Promise<number> {
   // persist memory updates (upsert with growth)
   for (const m of memoryUpdates) {
     await db.viewerMemory.upsert({
-      where: { viewerId_key: { viewerId: m.viewerId, key: m.key } },
+      where: { viewerId_arm_key: { viewerId: m.viewerId, arm: m.arm, key: m.key } },
       create: m,
       update: {
         stability: { set: Math.min(1, m.stability) },

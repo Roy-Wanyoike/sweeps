@@ -1,14 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ShowDetail, useEpisode, useMetrics, usePersonas, useReactions, useViewer } from '@/lib/queries';
+import { ShowDetail, Beat as QueriesBeat, useEpisode, useMetrics, usePersonas, useReactions, useViewer } from '@/lib/queries';
 import { useSweeps } from '@/lib/store';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Brain, Eye, MessageSquare, Users } from 'lucide-react';
-import { Beat } from '@/lib/contracts';
+
 
 function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   const s = sentiment ?? 'NEUTRAL';
@@ -37,10 +37,11 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
   const { data: epData } = useEpisode(currentEpId);
   const { data: reactions } = useReactions(currentEpId);
   const { data: personas } = usePersonas(detail.show.id);
-  const { data: viewer } = useViewer(detail.show.id, selectedViewerId);
+  // memories are arm-scoped (parallel timelines per arm) — follow the selected episode's arm
+  const { data: viewer } = useViewer(detail.show.id, selectedViewerId, epData?.episode.arm ?? 'A');
 
   const { data: metricsQ } = useMetrics(currentEpId);
-  const beats: Beat[] = epData?.plan?.beats ?? [];
+  const beats: QueriesBeat[] = epData?.plan?.beats ?? [];
   const beatTitle = (i: number | null) => (i === null ? undefined : beats[i]?.title);
 
   const archetypeCounts = useMemo(() => {
@@ -169,7 +170,7 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
                   <Eye className="mr-1 inline h-3 w-3" aria-hidden />
                   Watch history:{' '}
                   {viewer.screenings
-                    .map((s) => `Ep${s.episode.number}(${s.arm}) ${s.keepWatching ? '✓ finished' : `✗ dropped@${s.dropAtBeat}`}`)
+                    .map((s) => `Ep${s.episodeNumber}(${s.arm}) ${s.keepWatching ? '✓ finished' : `✗ dropped@${s.dropAtBeat}`}`)
                     .join(' · ') || 'none yet'}
                 </div>
               </div>

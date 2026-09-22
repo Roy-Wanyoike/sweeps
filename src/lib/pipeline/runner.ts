@@ -66,8 +66,10 @@ async function drain(): Promise<void> {
               },
             })
             .catch(() => undefined);
+          // honest status: this is a runtime crash, not a gate rejection —
+          // enqueueDemo resumes these from their persisted artifacts.
           await db.episode
-            .update({ where: { id: job.episodeId }, data: { status: 'COMPILE_FAILED' } })
+            .update({ where: { id: job.episodeId }, data: { status: 'PIPELINE_ERROR' } })
             .catch(() => undefined);
         }
       } finally {
@@ -155,17 +157,27 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
 
   await db.show.update({ where: { id: show.id }, data: { status: 'RUNNING' } });
 
-  /* ------------------------------ WRITING ------------------------------ */
-  await db.episode.update({ where: { id: episodeId }, data: { status: 'WRITING' } });
-  await log(episodeId, show.id, 'WRITING', 'STARTED');
+  /* ---------------- artifact-based crash-safe resume ----------------
+   * Each stage skips itself when its output is already persisted, so a
+   * PIPELINE_ERROR resume continues where the crash happened instead of
+   * re-spending WRITER tokens on a finished plan.
+   */
+  const storedPlan = jparse<Beat[] | { beats: Beat[] } | null>(episode.beatPlan, []);
+  const existingBeats = Array.isArray(storedPlan) ? storedPlan : (storedPlan?.beats ?? []);
+  const hasPlan = existingBeats.length > 0;
+  const storedReport = jparse<CompileReport | null>(episode.compileReport, null);
+  const hasCompile = hasPlan && !!storedReport && storedReport.status !== 'FAIL';
+  const renderedCount = await db.beat.count({
+    where: { episodeId, OR: [{ stillPath: { not: null } }, { renderStatus: 'SKIPPED' }] },
+  });
+  const hasRender = hasCompile && renderedCount > 0;
+  const screeningCount = await db.screening.count({ where: { episodeId } });
+  const hasScreening = hasRender && screeningCount > 0;
+
   const [characters, entities] = await Promise.all([
     db.character.findMany({ where: { showId: show.id } }),
     db.worldEntity.findMany({ where: { showId: show.id } }),
   ]);
-  const priorEps = await db.episode.findMany({
-    where: { showId: show.id, arm: episode.arm, number: { lt: episode.number }, status: 'DONE' },
-    orderBy: { number: 'asc' },
-  });
   const ctx: WriteCtx = {
     show: {
       id: show.id,
@@ -181,93 +193,152 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
     locations: entities.filter((e) => e.kind === 'LOCATION').map((e) => ({ name: e.name, desc: e.desc })),
     props: entities.filter((e) => e.kind === 'PROP').map((e) => ({ name: e.name, desc: e.desc })),
     episodeNumber: episode.number,
-    priorSummaries: priorEps.map((e) => ({ number: e.number, summary: e.summary ?? '' })),
+    priorSummaries: [],
   };
-  // treatment arm: feed measured analytics + optimizer directives
-  let directives: Awaited<ReturnType<typeof prepareTreatmentDirectives>> = [];
-  if (episode.arm === 'B' && episode.number > 1) {
-    const prevMetrics = await computeMetrics(priorEps[priorEps.length - 1]?.id ?? '');
-    if (prevMetrics && prevMetrics.cliffs.length > 0) {
-      ctx.analyticsBlock = prevMetrics.cliffs
-        .map((c) => `- beat ${c.beat} [${c.type}] "${c.title}" dropped ${(c.delta * 100).toFixed(1)} pts${c.quote ? ` — viewer: "${c.quote}"` : ''}`)
-        .join('\n');
-    }
-    directives = await prepareTreatmentDirectives(ctx, episode.number);
-    ctx.directives = directives;
-  }
-  const plan = await generatePlan(ctx);
-  await db.beat.deleteMany({ where: { episodeId } });
-  await db.episode.update({
-    where: { id: episodeId },
-    data: {
-      beatPlan: JSON.stringify(plan),
-      summary: plan.summary,
-      beats: {
-        create: plan.beats.map((b) => ({
-          index: b.index,
-          type: b.type,
-          title: b.title,
-          payload: JSON.stringify(b),
-        })),
-      },
-    },
-  });
-  await log(episodeId, show.id, 'WRITING', 'OK', { beats: plan.beats.length, directives: directives.length });
 
-  /* ----------------------------- COMPILING ----------------------------- */
-  await db.episode.update({ where: { id: episodeId }, data: { status: 'COMPILING' } });
-  await log(episodeId, show.id, 'COMPILING', 'STARTED');
-  let beats = plan.beats;
-  let report = compilePlan(beats, await buildCompileCtx(show.id, show.budgetUsd));
-  let loops = 0;
-  let method = 'PASS_AS_IS';
-  if (report.status === 'FAIL') {
-    const result = await repairLoop(ctx, await buildCompileCtx(show.id, show.budgetUsd), plan, report);
-    beats = result.plan.beats;
-    report = result.report;
-    loops = result.loops;
-    method = result.method;
-  }
-  const finalCompileCtx = await buildCompileCtx(show.id, show.budgetUsd);
-  report = compilePlan(beats, finalCompileCtx);
-  if (report.status === 'FAIL') {
+  let beats: Beat[] = existingBeats;
+  let report: CompileReport | null = storedReport;
+  let loops = episode.repairLoops;
+  let summary = episode.summary ?? '';
+
+  /* ------------------------------ WRITING ------------------------------ */
+  if (!hasPlan) {
+    await db.episode.update({ where: { id: episodeId }, data: { status: 'WRITING' } });
+    await log(episodeId, show.id, 'WRITING', 'STARTED');
+    const priorEps = await db.episode.findMany({
+      where: { showId: show.id, arm: episode.arm, number: { lt: episode.number }, status: 'DONE' },
+      orderBy: { number: 'asc' },
+    });
+    ctx.priorSummaries = priorEps.map((e) => ({ number: e.number, summary: e.summary ?? '' }));
+
+    // Paired dual-arm design: both arms premiere with the IDENTICAL episode, so
+    // ep2+ divergence is attributable to the optimizer loop — not to premiere luck.
+    let reused = false;
+    if (episode.number === 1 && show.mode === 'DUAL') {
+      const twinArm = episode.arm === 'A' ? 'B' : 'A';
+      const twin = await db.episode.findFirst({
+        where: { showId: show.id, number: 1, arm: twinArm, status: 'DONE' },
+      });
+      const twinPlan = twin ? jparse<{ beats: Beat[]; summary: string } | null>(twin.beatPlan, null) : null;
+      if (twinPlan && Array.isArray(twinPlan.beats) && twinPlan.beats.length > 0) {
+        beats = twinPlan.beats;
+        summary = twinPlan.summary ?? '';
+        report = null;
+        loops = 0;
+        reused = true;
+      }
+    }
+
+    // treatment arm: feed measured analytics + optimizer directives
+    let directives: Awaited<ReturnType<typeof prepareTreatmentDirectives>> = [];
+    if (!reused) {
+      if (episode.arm === 'B' && episode.number > 1) {
+        const prevMetrics = await computeMetrics(priorEps[priorEps.length - 1]?.id ?? '');
+        if (prevMetrics && prevMetrics.cliffs.length > 0) {
+          ctx.analyticsBlock = prevMetrics.cliffs
+            .map((c) => `- beat ${c.beat} [${c.type}] "${c.title}" dropped ${(c.delta * 100).toFixed(1)} pts${c.quote ? ` — viewer: "${c.quote}"` : ''}`)
+            .join('\n');
+        }
+        directives = await prepareTreatmentDirectives(ctx, episode.number);
+        ctx.directives = directives;
+      }
+      const plan = await generatePlan(ctx);
+      beats = plan.beats;
+      summary = plan.summary;
+      report = null;
+      loops = 0;
+    }
+    await db.beat.deleteMany({ where: { episodeId } });
     await db.episode.update({
       where: { id: episodeId },
-      data: { status: 'COMPILE_FAILED', compileReport: JSON.stringify(report), beatPlan: JSON.stringify({ beats, summary: plan.summary }), repairLoops: loops },
+      data: {
+        status: 'COMPILING',
+        beatPlan: JSON.stringify({ beats, summary }),
+        summary,
+        repairLoops: 0,
+        beats: {
+          create: beats.map((b) => ({
+            index: b.index,
+            type: b.type,
+            title: b.title,
+            payload: JSON.stringify(b),
+          })),
+        },
+      },
     });
-    await log(episodeId, show.id, 'COMPILING', 'ERROR', { status: report.status, violations: report.violations.length, loops, method });
-    return;
+    await log(episodeId, show.id, 'WRITING', 'OK', {
+      beats: beats.length,
+      directives: directives.length,
+      reusedFrom: reused ? (episode.arm === 'A' ? 'B' : 'A') : undefined,
+    });
   }
-  // persist (possibly repaired) plan
-  await db.beat.deleteMany({ where: { episodeId } });
-  await db.beat.createMany({
-    data: beats.map((b) => ({
-      episodeId,
-      index: b.index,
-      type: b.type,
-      title: b.title,
-      payload: JSON.stringify(b),
-      compileStatus: report.status,
-    })),
-  });
-  await db.episode.update({
-    where: { id: episodeId },
-    data: { beatPlan: JSON.stringify({ beats, summary: plan.summary }), compileReport: JSON.stringify(report), repairLoops: loops },
-  });
-  await log(episodeId, show.id, 'COMPILING', 'OK', { status: report.status, violations: report.violations.length, loops, method });
+
+  /* ----------------------------- COMPILING ----------------------------- */
+  if (!hasCompile) {
+    await db.episode.update({ where: { id: episodeId }, data: { status: 'COMPILING' } });
+    await log(episodeId, show.id, 'COMPILING', 'STARTED');
+    if (!beats.length) {
+      // plan lost between steps (should not happen) — cannot continue
+      throw new Error('no beat plan to compile');
+    }
+    const compileCtx = await buildCompileCtx(show.id, show.budgetUsd);
+    let rep = compilePlan(beats, compileCtx);
+    const initialViolations = rep.violations.length;
+    let method = 'PASS_AS_IS';
+    if (rep.status === 'FAIL') {
+      const result = await repairLoop(ctx, await buildCompileCtx(show.id, show.budgetUsd), { beats, summary }, rep);
+      beats = result.plan.beats;
+      rep = result.report;
+      loops = result.loops;
+      method = result.method;
+    }
+    report = rep;
+    if (report.status === 'FAIL') {
+      await db.episode.update({
+        where: { id: episodeId },
+        data: { status: 'COMPILE_FAILED', compileReport: JSON.stringify(report), beatPlan: JSON.stringify({ beats, summary }), repairLoops: loops },
+      });
+      await db.beat.deleteMany({ where: { episodeId } });
+      await db.beat.createMany({
+        data: beats.map((b) => ({ episodeId, index: b.index, type: b.type, title: b.title, payload: JSON.stringify(b) })),
+      });
+      await log(episodeId, show.id, 'COMPILING', 'ERROR', { status: report.status, initialViolations, violations: report.violations.length, loops, method });
+      return;
+    }
+    await db.beat.deleteMany({ where: { episodeId } });
+    await db.beat.createMany({
+      data: beats.map((b) => ({
+        episodeId,
+        index: b.index,
+        type: b.type,
+        title: b.title,
+        payload: JSON.stringify(b),
+        compileStatus: rep.status,
+      })),
+    });
+    await db.episode.update({
+      where: { id: episodeId },
+      data: { status: 'RENDERING', beatPlan: JSON.stringify({ beats, summary }), compileReport: JSON.stringify(report), repairLoops: loops },
+    });
+    await log(episodeId, show.id, 'COMPILING', 'OK', { status: report.status, violations: report.violations.length, loops, method });
+  }
 
   /* ----------------------------- RENDERING ----------------------------- */
-  await db.episode.update({ where: { id: episodeId }, data: { status: 'RENDERING' } });
-  await log(episodeId, show.id, 'RENDERING', 'STARTED');
-  const render = await renderEpisode(episodeId);
-  await log(episodeId, show.id, 'RENDERING', 'OK', render);
+  if (!hasRender) {
+    await db.episode.update({ where: { id: episodeId }, data: { status: 'RENDERING' } });
+    await log(episodeId, show.id, 'RENDERING', 'STARTED');
+    const render = await renderEpisode(episodeId);
+    await log(episodeId, show.id, 'RENDERING', 'OK', render);
+  }
 
   /* ----------------------------- SCREENING ----------------------------- */
-  await db.episode.update({ where: { id: episodeId }, data: { status: 'SCREENING' } });
-  await log(episodeId, show.id, 'SCREENING', 'STARTED');
-  await ensurePanel(show.id);
-  const screened = await simulateScreening(episodeId);
-  await log(episodeId, show.id, 'SCREENING', 'OK', { panel: screened });
+  if (!hasScreening) {
+    await db.episode.update({ where: { id: episodeId }, data: { status: 'SCREENING' } });
+    await log(episodeId, show.id, 'SCREENING', 'STARTED');
+    await ensurePanel(show.id);
+    const screened = await simulateScreening(episodeId);
+    await log(episodeId, show.id, 'SCREENING', 'OK', { panel: screened });
+  }
 
   /* ----------------------------- ANALYZING ----------------------------- */
   await db.episode.update({ where: { id: episodeId }, data: { status: 'ANALYZING' } });
@@ -299,12 +370,19 @@ export async function enqueueDemo(showId: string): Promise<number> {
       });
       if (existing && existing.status === 'DONE') continue;
       if (existing && existing.status === 'COMPILE_FAILED') {
-        // retry failed episodes with the current repairer
+        // gate rejection: wipe artifacts so the writer produces a FRESH plan,
+        // then run the full pipeline again (bounded by the same gates).
         await db.episode.update({
           where: { id: existing.id },
-          data: { status: 'DRAFT', compileReport: null, repairLoops: 0, spendUsd: 0 },
+          data: { status: 'DRAFT', beatPlan: null, summary: null, compileReport: null, repairLoops: 0, spendUsd: 0, retentionScore: null },
         });
         await db.beat.deleteMany({ where: { episodeId: existing.id } });
+        await db.screening.deleteMany({ where: { episodeId: existing.id } });
+        jobs.push({ kind: 'episode', episodeId: existing.id });
+        continue;
+      }
+      if (existing && existing.status === 'PIPELINE_ERROR') {
+        // runtime crash: keep persisted artifacts and resume from the failed stage
         jobs.push({ kind: 'episode', episodeId: existing.id });
         continue;
       }

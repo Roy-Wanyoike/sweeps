@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SWEEPS — Measure attention, not output</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============ SWEEPS · WARM STUDIO DESIGN SYSTEM ============ */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#faf7f2; --paper:#fffdf9; --ink:#1c1917; --ink2:#57534e; --ink3:#a29a8e;
+  --line:#e7dfcf; --line2:#d9cfba;
+  --amber:#d97706; --amber2:#f59e0b; --amber-ink:#b45309; --amber-deep:#92400e;
+  --rose:#e11d48; --emerald:#059669;
+  --cinema:#12100e; --cinema2:#1b1815; --cinema-line:#2e2a22;
+  --serif:'Fraunces',Georgia,'Times New Roman',serif;
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace;
+}
+html,body{height:100%}
+body{background:#0b0a08;color:var(--ink);font-family:var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+#viewport{position:fixed;inset:0;display:grid;place-items:center}
+#stage{position:relative;width:1280px;height:720px;flex:none;background:var(--bg);box-shadow:0 34px 110px rgba(0,0,0,.6);transform-origin:center center}
+
+/* ---------- slides base ---------- */
+.slide{position:absolute;inset:0;background:radial-gradient(1400px 900px at 18% -8%,#fffef9 0%,var(--bg) 55%);visibility:hidden;opacity:0;overflow:hidden;transition:opacity .3s ease}
+.slide.active{visibility:visible;opacity:1}
+.slide.dark{background:radial-gradient(1200px 800px at 78% -12%,#231c10 0%,var(--cinema) 55%);color:#f4efe6}
+@keyframes rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+.slide.active [data-anim]{animation:rise .32s cubic-bezier(.2,.7,.3,1) both;animation-delay:var(--d,0s)}
+
+/* ---------- chrome ---------- */
+.chrome{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:26px 56px 0;z-index:6}
+.wordmark{display:flex;align-items:center;gap:10px;font:800 13px/1 var(--sans);letter-spacing:.34em;color:var(--ink)}
+.wm-mark{width:14px;height:14px;border-radius:3.5px;transform:rotate(-6deg);background:linear-gradient(135deg,var(--amber2) 0 38%,#fff8ea 38% 52%,var(--amber) 52%);box-shadow:0 1px 4px rgba(217,119,6,.35)}
+.chrome-right{display:flex;align-items:center;gap:14px}
+.kicker{font:600 11px/1 var(--mono);letter-spacing:.2em;color:var(--ink2)}
+.track-chip{font:700 10.5px/1 var(--mono);letter-spacing:.14em;color:var(--amber-ink);border:1px solid #eedbb3;background:#fbf1dc;border-radius:999px;padding:7px 12px}
+.slide.dark .wordmark{color:#f4efe6}
+.slide.dark .kicker{color:#a89f8f}
+.slide.dark .track-chip{color:#f3c46b;border-color:#4a3a1c;background:#221a0d}
+.chrome-foot{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 56px 21px;z-index:6;font:600 10px/1 var(--mono);letter-spacing:.2em;color:var(--ink3)}
+.chrome-foot .num{font-weight:700;color:var(--ink)}
+.chrome-foot .num em{font-style:normal;font-weight:500;color:var(--ink3)}
+.foot-dots{display:flex;gap:7px}
+.foot-dots i{width:5px;height:5px;border-radius:1.5px;background:var(--line2)}
+.slide.dark .chrome-foot{color:#6d6355}
+.slide.dark .chrome-foot .num{color:#f4efe6}
+.slide.dark .foot-dots i{background:#3a332a}
+.content{position:absolute;top:86px;left:56px;right:56px;bottom:54px}
+
+/* ---------- typography ---------- */
+h2.hl{font:600 38px/1.1 var(--serif);letter-spacing:-.012em;color:var(--ink)}
+h2.hl .acc{color:var(--amber)}
+h2.hl .accr{color:var(--rose)}
+.sub{font:400 16.5px/1.5 var(--sans);color:var(--ink2)}
+.mono{font-family:var(--mono)}
+
+/* ---------- chips ---------- */
+.chip{display:inline-flex;align-items:center;gap:7px;font:700 10.5px/1 var(--mono);letter-spacing:.12em;padding:7px 11px;border-radius:999px;border:1px solid var(--line2);color:var(--ink2);background:var(--paper);white-space:nowrap}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.chip.hook{color:var(--amber-ink);border-color:#eedbb3;background:#fbf1dc}.chip.hook .dot{background:var(--amber2)}
+.chip.setup{color:#57534e;border-color:#d9d2c2;background:#f4f0e7}.chip.setup .dot{background:#a8a29e}
+.chip.reveal{color:var(--amber-deep);border-color:#e8cfa0;background:#f8ebd0}.chip.reveal .dot{background:var(--amber)}
+.chip.twist{color:var(--rose);border-color:#f5cdd8;background:#fdeef2}.chip.twist .dot{background:var(--rose)}
+.chip.cliff{color:#1c1917;border-color:#c6bda9;background:#ece7db}.chip.cliff .dot{background:#1c1917}
+.chip.good{color:var(--emerald);border-color:#c3e6d5;background:#eafaf2}.chip.good .dot{background:var(--emerald)}
+.chip.on-dark{color:#d8cbb2;border-color:#3a332a;background:#1d1913}
+.chip.on-dark .dot{background:var(--amber2)}
+
+/* ---------- cards ---------- */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 28px rgba(87,63,23,.06)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 20px;border-bottom:1px dashed var(--line)}
+.card-h b{font:700 11px/1 var(--mono);letter-spacing:.16em;color:var(--ink2)}
+
+/* ---------- glow / filmstrip (decor) ---------- */
+.glow{position:absolute;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(245,158,11,.17) 0%,rgba(245,158,11,0) 62%)}
+.g-tr{width:880px;height:880px;top:-330px;right:-260px}
+.g-bl{width:760px;height:760px;bottom:-320px;left:-240px;background:radial-gradient(circle,rgba(225,29,72,.07) 0%,rgba(225,29,72,0) 60%)}
+.g-c{width:1000px;height:1000px;top:-220px;left:50%;transform:translateX(-50%)}
+.filmstrip-svg{display:block;width:100%;height:auto}
+
+/* ---------- HUD ---------- */
+#progress{position:absolute;top:0;left:0;height:4px;width:0;z-index:40;background:linear-gradient(90deg,var(--amber),var(--amber2));transition:width .3s ease}
+#hud{position:fixed;right:20px;bottom:16px;z-index:90;font:600 11px/1 var(--mono);letter-spacing:.18em;color:rgba(244,239,230,.8);background:rgba(18,16,14,.62);border:1px solid rgba(244,239,230,.14);border-radius:999px;padding:9px 14px;backdrop-filter:blur(4px)}
+#hint{position:fixed;left:20px;bottom:16px;z-index:90;font:600 10.5px/1 var(--mono);letter-spacing:.16em;color:rgba(244,239,230,.55);background:rgba(18,16,14,.5);border-radius:999px;padding:9px 14px;animation:hintfade .8s ease 5.2s forwards;pointer-events:none}
+@keyframes hintfade{to{opacity:0}}
+
+/* ================= SLIDE 1 · COVER ================= */
+.cover-strip{position:absolute;top:0;left:0;right:0;z-index:1}
+.cover-body{position:absolute;inset:70px 96px 54px;display:flex;flex-direction:column;justify-content:center;z-index:3}
+.cover-slate{display:inline-flex;align-items:center;gap:12px;margin-bottom:26px}
+.cover-slate .slate{font:700 11.5px/1 var(--mono);letter-spacing:.26em;color:#f3c46b;border:1px solid #4a3a1c;background:#211a0e;border-radius:6px;padding:10px 14px}
+.cover-slate .rule{flex:0 0 120px;height:1px;background:linear-gradient(90deg,#4a3a1c,transparent)}
+h1.cover-title{font:900 148px/0.95 var(--serif);letter-spacing:-.015em;color:#f7f1e4;text-wrap:balance}
+h1.cover-title .tick{color:var(--amber2)}
+.cover-line{margin-top:26px;font:500 30px/1.3 var(--serif);color:#b7ac99}
+.cover-line strong{display:block;font-weight:600;color:#f4efe6;font-size:34px}
+.cover-line em{font-style:italic;color:var(--amber2)}
+.cover-chips{display:flex;gap:10px;margin-top:34px;flex-wrap:wrap}
+.cover-foot{position:absolute;left:96px;right:96px;bottom:56px;display:flex;justify-content:space-between;align-items:center;font:600 11px/1 var(--mono);letter-spacing:.2em;color:#8d8371;z-index:3}
+.cover-foot .team{color:#d8cbb2}
+
+/* ================= SLIDE 2 · PROBLEM ================= */
+.problem-wrap{height:100%;display:flex;flex-direction:column;justify-content:center;gap:44px}
+.quote-block{position:relative;padding-left:88px;max-width:1060px}
+.quote-mark{position:absolute;left:-6px;top:-38px;font:900 190px/1 var(--serif);color:var(--amber2);opacity:.28}
+.quote{font:500 50px/1.18 var(--serif);letter-spacing:-.014em;color:var(--ink)}
+.quote .watch{font-style:italic;color:var(--amber);font-weight:700}
+.quote-att{margin-top:22px;font:600 12px/1 var(--mono);letter-spacing:.22em;color:var(--ink3)}
+.statlet-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px}
+.statlet{border-top:2px solid var(--line2);padding-top:16px}
+.statlet .big{font:700 24px/1 var(--mono);letter-spacing:.02em;color:var(--ink)}
+.statlet .big.rose{color:var(--rose)}
+.statlet .big.amber{color:var(--amber-ink)}
+.statlet p{margin-top:9px;font:400 13.5px/1.5 var(--sans);color:var(--ink2)}
+.spark{margin-top:10px}
+
+/* ================= SLIDE 3 · PRODUCT ================= */
+.thesis-top{display:flex;flex-direction:column;gap:18px;margin-bottom:34px}
+.thesis-hero{font:500 36px/1.28 var(--serif);letter-spacing:-.01em;color:var(--ink);max-width:1120px}
+.thesis-hero .n200{font-weight:800;color:var(--amber)}
+.thesis-hero .ab{font-weight:700;color:var(--rose);border-bottom:3px solid #f5cdd8}
+.thesis-hero .s2{font-style:italic;font-weight:600}
+.frame-row{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+.frame{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px 20px 18px;box-shadow:0 10px 28px rgba(87,63,23,.06)}
+.frame::before,.frame::after{content:"";position:absolute;left:12px;right:12px;height:8px;background:repeating-linear-gradient(90deg,var(--line) 0 12px,transparent 12px 26px);opacity:.9}
+.frame::before{top:6px}.frame::after{bottom:6px}
+.frame .fr-no{font:700 10px/1 var(--mono);letter-spacing:.2em;color:var(--ink3)}
+.frame .fr-ic{margin:16px 0 12px;color:var(--amber)}
+.frame .fr-ic.rose{color:var(--rose)}
+.frame .fr-ic.green{color:var(--emerald)}
+.frame h3{font:700 19px/1 var(--sans);letter-spacing:.01em;color:var(--ink)}
+.frame p{margin-top:9px;font:400 13px/1.5 var(--sans);color:var(--ink2);min-height:58px}
+.frame .corner{position:absolute;width:10px;height:10px;border-color:var(--line2);border-style:solid}
+.frame .c-tl{top:16px;left:16px;border-width:1.5px 0 0 1.5px}
+.frame .c-br{bottom:16px;right:16px;border-width:0 1.5px 1.5px 0}
+
+/* ================= SLIDE 4 · ARCHITECTURE ================= */
+.arch-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:14px}
+.legend{display:flex;flex-direction:column;gap:8px}
+.legend .lg{display:flex;align-items:center;gap:9px;font:600 11px/1.3 var(--mono);letter-spacing:.06em;color:var(--ink2)}
+.legend .sw{width:22px;height:12px;border-radius:3px;flex:none}
+.legend .sw.rail{background:#f8ecd2;border:2px solid var(--amber)}
+.legend .sw.llm{background:var(--paper);border:1.6px dashed var(--rose)}
+.arch{width:100%;height:auto;display:block}
+.arch text{font-family:var(--sans)}
+.arch .mono{font-family:var(--mono)}
+.arch-cap{display:flex;justify-content:center;gap:12px;margin-top:12px}
+.arch-cap .chip{font-size:10px}
+
+/* ================= SLIDE 5 · THE GATE ================= */
+.gate-grid{display:grid;grid-template-columns:468px 1fr;gap:42px;height:100%;align-items:stretch}
+.gate-left{display:flex;flex-direction:column;gap:22px;min-width:0}
+.gate-hero{display:flex;align-items:center;gap:20px}
+.gate-hero .zero{font:800 100px/0.85 var(--serif);color:var(--amber);letter-spacing:-.03em}
+.gate-hero .zl{font:600 12.5px/1.55 var(--mono);letter-spacing:.08em;color:var(--ink2);max-width:230px}
+.rule-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.rule-chip{font:700 10.5px/1 var(--mono);letter-spacing:.04em;color:var(--amber-deep);background:#f8ecd0;border:1px solid #ecd9ae;border-radius:8px;padding:11px 4px;text-align:center;white-space:nowrap}
+.gate-note{font:400 14.5px/1.6 var(--sans);color:var(--ink2)}
+.gate-note b{color:var(--ink);font-weight:700}
+.console{background:#191613;border:1px solid #35301f;border-radius:14px;color:#cfc7b6;font-family:var(--mono);box-shadow:0 26px 60px rgba(28,25,23,.22);display:flex;flex-direction:column;overflow:hidden}
+.con-bar{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #2a251d;font:600 11.5px/1 var(--mono);letter-spacing:.1em;color:#a89f8f}
+.con-dots{display:flex;gap:6px}
+.con-dots i{width:10px;height:10px;border-radius:50%;background:#332c22}
+.con-status{margin-left:auto;padding:6px 11px;border-radius:6px;font-weight:700;letter-spacing:.14em;font-size:10.5px}
+.con-status.fail{background:#3d1420;color:#ff8ba3;border:1px solid #6b2338}
+.con-body{padding:18px;display:flex;flex-direction:column;gap:16px;font-size:12.5px;line-height:1.55}
+.viol{border-left:3px solid #6b2338;padding-left:13px}
+.viol.warn{border-left-color:#6b5220}
+.badge{display:inline-block;font:700 10px/1 var(--mono);letter-spacing:.12em;border-radius:5px;padding:5px 8px;margin-right:9px}
+.badge.err{background:#3d1420;color:#ff8ba3}
+.badge.warn{background:#382c12;color:#eab308}
+.viol .loc{color:#8d8371;font-size:11px;letter-spacing:.08em}
+.viol p{color:#cfc7b6;margin-top:7px}
+.viol .fix{color:#8fd6b3}
+.viol .fix b{color:#34d399}
+.con-foot{margin-top:auto;display:flex;justify-content:space-between;gap:10px;padding:14px 18px;border-top:1px solid #2a251d;font:600 11px/1.4 var(--mono);letter-spacing:.05em;color:#a89f8f}
+.con-foot b{color:#f4efe6}
+.con-foot .good{color:#34d399}
+
+/* ================= SLIDE 6 · AUDIENCE ================= */
+.aud-wrap{display:flex;flex-direction:column;gap:20px;height:100%}
+.hl-row{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.aud-grid{display:grid;grid-template-columns:440px 1fr;gap:36px;flex:1;min-height:0}
+.aud-left{display:flex;flex-direction:column;gap:13px}
+.aud-left .lab{font:700 10.5px/1 var(--mono);letter-spacing:.18em;color:var(--ink3)}
+.persona-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.persona{display:flex;align-items:center;gap:9px;font:600 11.5px/1 var(--mono);letter-spacing:.02em;color:var(--ink2);background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:12px 12px;white-space:nowrap}
+.persona i{width:7px;height:7px;border-radius:2px;background:var(--amber2);flex:none}
+.persona:nth-child(4n) i{background:var(--rose)}
+.persona:nth-child(4n+3) i{background:#a8a29e}
+.persona-note{font:500 11px/1.7 var(--mono);color:var(--ink3);letter-spacing:.03em}
+.aud-right{display:flex;flex-direction:column;gap:16px;min-width:0}
+.math{font:600 16px/1.6 var(--mono);color:var(--ink);letter-spacing:-.01em}
+.math sub{font-size:.66em}
+.math .hl-a{color:var(--amber-ink)}
+.math .hl-r{color:var(--rose)}
+.math .hl-g{color:var(--emerald)}
+.rows{padding:14px 20px 16px;display:flex;flex-direction:column;gap:11px}
+.impact-row{display:flex;gap:8px;flex-wrap:wrap}
+.impact-chip{font:600 10.5px/1 var(--mono);letter-spacing:.05em;padding:7px 9px;border-radius:6px;background:#f4eee1;border:1px solid var(--line);color:var(--ink2)}
+.verdict-line{font:700 13.5px/1.4 var(--mono);color:var(--emerald);letter-spacing:.02em}
+.sim-line{font:400 12.5px/1.6 var(--sans);color:var(--ink2)}
+.sim-line .mono{font-size:11.5px}
+
+/* ================= SLIDE 7 · LOOP ================= */
+.loop-flow{display:grid;grid-template-columns:1fr 24px 1fr 24px 1fr 24px 1fr 24px 1fr;align-items:stretch;margin:26px 0 26px}
+.step{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:20px 15px 14px;position:relative;box-shadow:0 8px 22px rgba(87,63,23,.05)}
+.step .n{position:absolute;top:-11px;left:14px;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#f4efe6;font:700 11px/22px var(--mono);text-align:center}
+.step.hot .n{background:var(--amber)}
+.step h4{font:700 13px/1.3 var(--sans);color:var(--ink);letter-spacing:.01em}
+.step p{font:400 11.5px/1.45 var(--sans);color:var(--ink2);margin-top:6px}
+.loop-arrow{display:flex;align-items:center;justify-content:center;color:var(--amber);font:700 15px/1 var(--mono)}
+.loop-bottom{display:grid;grid-template-columns:1.22fr 1fr;gap:32px;align-items:start}
+.receipt{background:var(--paper);border:1px solid var(--line);border-radius:14px;font-family:var(--mono);overflow:hidden;box-shadow:0 14px 34px rgba(87,63,23,.08)}
+.receipt-h{padding:14px 18px;border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;font:700 10.5px/1 var(--mono);letter-spacing:.13em;color:var(--ink2)}
+.rrow{display:grid;grid-template-columns:26px 1fr auto;gap:13px;align-items:center;padding:13px 18px;border-bottom:1px dashed var(--line)}
+.rrow .rb{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font:700 11.5px/1 var(--mono)}
+.rrow.a .rb{background:#f1ece0;color:#57534e}
+.rrow.b .rb{background:var(--amber);color:#fff}
+.rrow .vname{font:600 12.5px/1.3 var(--mono);color:var(--ink)}
+.rrow .vsub{font:400 10.5px/1.3 var(--mono);color:var(--ink3);margin-top:4px}
+.rrow .rmeta{text-align:right;font:600 11px/1.7 var(--mono);color:var(--ink2);white-space:nowrap}
+.rrow.chosen{background:#f0faf4;border-bottom:1px dashed #cbe9d8}
+.rfoot{padding:13px 18px;font:500 10.5px/1.75 var(--mono);color:var(--ink2);letter-spacing:.02em}
+.rfoot b{color:var(--amber-ink)}
+.loop-copy{display:flex;flex-direction:column;gap:16px}
+.loop-copy p{font:400 15px/1.6 var(--sans);color:var(--ink2)}
+.loop-copy p b{color:var(--ink)}
+.loop-copy .chiprow{display:flex;gap:9px;flex-wrap:wrap}
+
+/* ================= SLIDE 8 · DUAL-ARM (dark) ================= */
+.verdict-card{position:relative;background:linear-gradient(160deg,#241d11,#191510);border:1px solid #4a3a1c;border-radius:18px;padding:32px 40px 30px;box-shadow:0 26px 70px rgba(0,0,0,.45)}
+.verdict-tag{position:absolute;top:-14px;left:36px}
+.verdict-tag .chip{border-color:#4a3a1c;background:#241c0d;color:#f3c46b}
+.verdict{font:500 32px/1.3 var(--serif);color:#f7f1e4;letter-spacing:-.01em}
+.verdict .x{font-family:var(--mono);font-weight:700;color:var(--amber2);font-size:30px}
+.dual-grid{display:grid;grid-template-columns:1.18fr .82fr;gap:28px;margin-top:26px;align-items:stretch}
+.dpanel{background:#171310;border:1px solid #2e2a22;border-radius:14px;padding:16px 18px 10px;display:flex;flex-direction:column}
+.dlegend{display:flex;gap:9px;margin-bottom:8px;flex-wrap:wrap}
+.dlegend .chip{font-size:9.5px;padding:6px 9px}
+.dtable{background:#171310;border:1px solid #2e2a22;border-radius:14px;padding:6px 22px;font-family:var(--mono);display:flex;flex-direction:column}
+.drow{display:grid;grid-template-columns:1fr auto auto;gap:20px;padding:14px 0;border-bottom:1px dashed #2e2a22;font:500 12px/1.4 var(--mono);color:#a89f8f;align-items:center}
+.drow .av{color:#b9ae9b;font-weight:600}
+.drow .bv{color:var(--amber2);font-weight:700}
+.drow.head{font:700 9.5px/1 var(--mono);letter-spacing:.16em;color:#6d6355;border-bottom:1px solid #2e2a22}
+.dnote{font:500 10.5px/1.8 var(--mono);color:#8d8371;letter-spacing:.04em;padding:12px 0}
+.dnote b{color:#b9ae9b}
+.dual-foot{margin-top:16px;text-align:center;font:600 10.5px/1 var(--mono);letter-spacing:.22em;color:#6d6355}
+
+/* ================= SLIDE 9 · LEDGER ================= */
+.ledger-grid{display:grid;grid-template-columns:1fr 328px;gap:34px;margin-top:24px;align-items:start}
+.ledger{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 14px 34px rgba(87,63,23,.07)}
+.ledger-h{display:flex;justify-content:space-between;align-items:center;padding:15px 22px;border-bottom:2px solid var(--ink);font:700 11px/1 var(--mono);letter-spacing:.18em;color:var(--ink)}
+.lrow{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px dashed var(--line);font-family:var(--mono)}
+.lrow:last-child{border-bottom:0}
+.lrow .k{font:600 12px/1.4 var(--mono);color:var(--ink);letter-spacing:.02em;flex:none}
+.lrow .lead{flex:1;border-bottom:2px dotted var(--line2);min-width:24px;transform:translateY(3px)}
+.lrow .v{font:700 12.5px/1.4 var(--mono);color:var(--amber-ink);text-align:right;white-space:nowrap}
+.lrow.hero{background:#fbf3e0}
+.lrow.hero .v{font-size:14px;color:var(--emerald)}
+.lrow .chip{font-size:9px;padding:5px 8px;flex:none}
+.ledger-f{padding:11px 22px;border-top:1px dashed var(--line);font:500 10.5px/1.5 var(--mono);color:var(--ink3);letter-spacing:.04em}
+.num-cards{display:flex;flex-direction:column;gap:18px}
+.numcard{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.numcard.good{border-color:#bfe5d2;background:#f2fbf6}
+.numcard .n{font:800 50px/1 var(--serif);color:var(--ink);letter-spacing:-.02em}
+.numcard .n em{font-style:normal;color:var(--amber)}
+.numcard.good .n{color:var(--emerald)}
+.numcard .l{font:700 10px/1.6 var(--mono);letter-spacing:.18em;color:var(--ink3);margin-top:6px}
+.numcard p{font:400 12.5px/1.55 var(--sans);color:var(--ink2);margin-top:7px}
+.numcard p .mono{font-size:11px}
+
+/* ================= SLIDE 10 · RECEIPTS ================= */
+.rcpts{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:18px;margin-top:22px;height:calc(100% - 96px)}
+.rcard{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:17px 20px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.rcard .rt{display:flex;align-items:center;gap:10px;font:700 11px/1 var(--mono);letter-spacing:.16em;color:var(--ink)}
+.rcard .rt .rn{color:var(--amber);font-weight:800}
+.rcard p{font:400 12.5px/1.55 var(--sans);color:var(--ink2)}
+.rcard p b{color:var(--ink)}
+.capbar{display:flex;height:28px;border-radius:8px;overflow:hidden;border:1px solid var(--line2);margin-top:2px}
+.capbar i{display:grid;place-items:center;font:700 10px/1 var(--mono);letter-spacing:.05em;color:#fff}
+.ladder{font:500 11.5px/1.6 var(--mono);color:var(--ink2);letter-spacing:.01em}
+.ladder b{color:var(--rose);font-weight:700}
+.stateflow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.state{font:700 9.5px/1 var(--mono);letter-spacing:.07em;padding:7px 9px;border-radius:6px;background:#f4efe3;border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
+.state.err{background:#fdeef2;border-color:#f5cdd8;color:var(--rose)}
+.state.ok{background:#eafaf2;border-color:#c3e6d5;color:var(--emerald)}
+.state-loop{display:flex;flex-direction:column;gap:8px}
+.strow{display:flex;align-items:flex-start;gap:12px}
+.strow .chip{font-size:10px;flex:none}
+
+/* ================= SLIDE 11 · STACK ================= */
+.stack-grid{display:grid;grid-template-columns:1fr 1.06fr;gap:30px;margin-top:24px;align-items:start}
+.stack-card{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 14px 34px rgba(87,63,23,.07)}
+.srow{display:grid;grid-template-columns:92px 1fr;gap:14px;padding:14.5px 20px;border-bottom:1px dashed var(--line);align-items:baseline}
+.srow:last-child{border-bottom:0}
+.srow .sk{font:700 9.5px/1.6 var(--mono);letter-spacing:.16em;color:var(--amber-ink)}
+.srow .sv{font:600 14px/1.45 var(--sans);color:var(--ink)}
+.srow .sv .m{font:500 12px/1.5 var(--mono);color:var(--ink2);display:block;margin-top:2px}
+.switch{display:inline-flex;align-items:center;border:1.5px solid var(--line2);border-radius:999px;padding:4px;background:#f4efe3;margin:2px 0 4px}
+.switch .opt{font:700 10.5px/1 var(--mono);letter-spacing:.12em;padding:9px 16px;border-radius:999px;color:var(--ink2)}
+.switch .opt.on{background:var(--ink);color:#f4efe6}
+.envline{font:500 11.5px/1.5 var(--mono);color:var(--ink3);letter-spacing:.03em}
+.envline code{font:700 11.5px/1 var(--mono);color:var(--amber-ink);background:#f8ecd0;border:1px solid #ecd9ae;border-radius:5px;padding:3px 7px}
+.prow{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:11px 20px;border-top:1px dashed var(--line);align-items:baseline}
+.prow .sk{font:700 9.5px/1.6 var(--mono);letter-spacing:.14em;color:var(--ink2)}
+.prow .sv{font:500 12.5px/1.55 var(--sans);color:var(--ink2)}
+.model-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.mchip{font:600 10.5px/1 var(--mono);letter-spacing:.03em;color:var(--amber-deep);background:#f8ecd0;border:1px solid #ecd9ae;border-radius:7px;padding:8px 10px;white-space:nowrap}
+.parity-foot{margin:14px 20px 16px;font:700 11.5px/1.5 var(--mono);color:var(--emerald);letter-spacing:.03em}
+
+/* ================= SLIDE 12 · DEMO ================= */
+.demo-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:18px;margin-top:30px}
+.dframe{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:26px 15px 20px;box-shadow:0 10px 24px rgba(87,63,23,.05);display:flex;flex-direction:column}
+.dframe::before,.dframe::after{content:"";position:absolute;left:10px;right:10px;height:7px;background:repeating-linear-gradient(90deg,var(--line) 0 9px,transparent 9px 22px)}
+.dframe::before{top:9px}
+.dframe::after{bottom:9px}
+.dframe .tc{font:800 22px/1 var(--mono);color:var(--amber);letter-spacing:-.02em}
+.dframe h4{font:700 15px/1.2 var(--sans);color:var(--ink);margin:11px 0 9px}
+.dframe p{font:400 11.5px/1.5 var(--sans);color:var(--ink2)}
+.dframe .chip{margin-top:auto;align-self:flex-start;font-size:9px;padding:5px 8px}
+.demo-note{margin-top:24px;display:flex;justify-content:space-between;font:600 10.5px/1 var(--mono);letter-spacing:.16em;color:var(--ink3)}
+
+/* ================= SLIDE 13 · CLOSE ================= */
+.close-body{position:absolute;inset:96px 100px 96px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:30px;z-index:3}
+.close-kicker{font:700 11.5px/1 var(--mono);letter-spacing:.34em;color:#a89f8f}
+.close-title{font:600 82px/1.06 var(--serif);color:#f7f1e4;letter-spacing:-.015em}
+.close-title em{font-style:italic;color:var(--amber2)}
+.repo{display:inline-flex;align-items:center;gap:12px;font:600 14.5px/1 var(--mono);letter-spacing:.05em;color:#f4efe6;border:1px solid #4a3a1c;background:#1d1913;border-radius:999px;padding:16px 26px;text-decoration:none;transition:border-color .2s}
+.repo:hover{border-color:var(--amber2)}
+.repo .gh{width:9px;height:9px;border-radius:50%;background:var(--amber2);flex:none}
+.tracks{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.tchip{font:700 10.5px/1 var(--mono);letter-spacing:.14em;color:#d8cbb2;border:1px solid #3a332a;border-radius:999px;padding:12px 17px;background:#1d1913}
+.tchip.primary{color:#221a0d;background:linear-gradient(120deg,var(--amber2),var(--amber));border-color:transparent}
+.close-strip{position:absolute;bottom:0;left:0;right:0;z-index:1}
+.close-foot{position:absolute;bottom:112px;left:0;right:0;text-align:center;font:600 10.5px/1.6 var(--mono);letter-spacing:.2em;color:#8d8371;z-index:3}
+
+/* ================= PRINT / MOTION ================= */
+@page{size:1280px 720px;margin:0}
+@media print{
+  body{overflow:visible;background:#fff}
+  #viewport{position:static;display:block}
+  #stage{transform:none!important;box-shadow:none;width:1280px;height:auto}
+  .slide{position:relative;inset:auto;visibility:visible;opacity:1;width:1280px;height:720px;break-after:page;page-break-after:always}
+  .slide:last-of-type{break-after:auto;page-break-after:auto}
+  #progress,#hud,#hint{display:none!important}
+  .slide [data-anim]{animation:none!important}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+@media (prefers-reduced-motion: reduce){
+  .slide [data-anim]{animation:none!important}
+  #hint{animation:none;opacity:0}
+}
+</style>
+</head>
+<body>
+
+<!-- shared svg defs (patterns + filmstrip symbol) -->
+<svg aria-hidden="true" data-decor style="position:absolute;width:0;height:0" focusable="false">
+  <defs>
+    <pattern id="sprock" width="42" height="84" patternUnits="userSpaceOnUse">
+      <rect x="12" y="8" width="18" height="12" rx="3.5" fill="#060504"/>
+      <rect x="12" y="64" width="18" height="12" rx="3.5" fill="#060504"/>
+    </pattern>
+    <symbol id="filmstrip" viewBox="0 0 1200 84">
+      <rect width="1200" height="84" rx="12" fill="#17140f"/>
+      <rect width="1200" height="84" rx="12" fill="url(#sprock)"/>
+      <g font-family="JetBrains Mono, Menlo, Consolas, monospace" font-size="13" font-weight="600" letter-spacing="4" fill="#5f564a" text-anchor="middle">
+        <text x="165" y="47">HOOK</text>
+        <text x="455" y="47">SETUP</text>
+        <text x="745" y="47">REVEAL</text>
+        <text x="1035" y="47">CLIFFHANGER</text>
+      </g>
+      <g fill="#241f17" stroke="#332c22" stroke-width="1">
+        <rect x="40" y="26" width="250" height="32" rx="4"/>
+        <rect x="330" y="26" width="250" height="32" rx="4"/>
+        <rect x="620" y="26" width="250" height="32" rx="4"/>
+        <rect x="910" y="26" width="250" height="32" rx="4"/>
+      </g>
+      <g font-family="JetBrains Mono, Menlo, Consolas, monospace" font-size="13" font-weight="600" letter-spacing="4" fill="#8d8371" text-anchor="middle">
+        <text x="165" y="47">HOOK</text>
+        <text x="455" y="47">SETUP</text>
+        <text x="745" y="47">REVEAL</text>
+        <text x="1035" y="47">CLIFFHANGER</text>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="viewport">
+<div id="stage">
+<div id="progress"></div>
+
+<!-- ============ 01 · COVER ============ -->
+<section class="slide dark" id="s1">
+  <div class="glow g-tr" data-decor aria-hidden="true"></div>
+  <div class="glow g-bl" data-decor aria-hidden="true"></div>
+  <div class="cover-strip" data-decor aria-hidden="true"><svg class="filmstrip-svg" viewBox="0 0 1200 84"><use href="#filmstrip"/></svg></div>
+  <div class="cover-body">
+    <div class="cover-slate" data-anim style="--d:.02s">
+      <span class="slate">SCENE 01 · TAKE 01 · TRACK 2 — AI SHOWRUNNER</span>
+      <span class="rule" aria-hidden="true"></span>
+    </div>
+    <h1 class="cover-title" data-anim style="--d:.08s">SWEEPS<span class="tick">.</span></h1>
+    <p class="cover-line" data-anim style="--d:.16s"><span>Losers generate content.</span>
+      <strong>Sweeps generates <em>measured attention per dollar.</em></strong></p>
+    <div class="cover-chips" data-anim style="--d:.26s">
+      <span class="chip hook"><span class="dot"></span>HOOK</span>
+      <span class="chip setup"><span class="dot"></span>SETUP</span>
+      <span class="chip reveal"><span class="dot"></span>REVEAL</span>
+      <span class="chip twist"><span class="dot"></span>TWIST</span>
+      <span class="chip cliff"><span class="dot"></span>CLIFFHANGER</span>
+      <span class="chip on-dark"><span class="dot"></span>200 PERSONA-AGENTS ON EVERY CUT</span>
+    </div>
+  </div>
+  <div class="cover-foot" data-anim style="--d:.34s">
+    <span class="team">[YOUR TEAM] · GLOBAL AI HACKATHON SERIES WITH QWEN CLOUD</span>
+    <span>EP 01 — 13 SLIDES · 16:9 · ARROWS TO ROLL</span>
+  </div>
+</section>
+
+<!-- ============ 02 · PROBLEM ============ -->
+<section class="slide" id="s2">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">01 · THE PROBLEM</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <div class="problem-wrap">
+      <div class="quote-block" data-anim style="--d:.04s">
+        <span class="quote-mark" aria-hidden="true">“</span>
+        <p class="quote">AI showrunners generate infinite scripts; none of them know if anyone would <span class="watch">watch</span>.</p>
+        <p class="quote-att">— THE SERIALIZATION PROBLEM · RENEWAL IS EARNED, NOT GENERATED</p>
+      </div>
+      <div class="statlet-row">
+        <div class="statlet" data-anim style="--d:.14s">
+          <div class="big">∞ SCRIPTS</div>
+          <p>Generative writers ship infinite drafts. Output is the one thing AI already oversupplies.</p>
+        </div>
+        <div class="statlet" data-anim style="--d:.22s">
+          <div class="big rose">0 RETENTION</div>
+          <p>No writer agent measures whether a single viewer comes back for episode 2.</p>
+        </div>
+        <div class="statlet" data-anim style="--d:.30s">
+          <div class="big amber">RENEWAL = RETENTION</div>
+          <p>Serialization economics: season 2 is granted beat-by-beat, at every drop-off cliff.</p>
+          <svg class="spark" width="150" height="30" viewBox="0 0 150 30" aria-hidden="true">
+            <path d="M2 5 H30 V14 H56 V21 H86 V25 H118 V27 H148" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linejoin="round"/>
+            <circle cx="30" cy="14" r="3" fill="#e11d48"/><circle cx="86" cy="21" r="3" fill="#e11d48"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">02 <em>/ 13</em></span>
+  </footer>
+</section>
+
+<!-- ============ 03 · THESIS / PRODUCT ============ -->
+<section class="slide" id="s3">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">02 · THE PRODUCT</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <div class="thesis-top">
+      <h2 class="hl" data-anim style="--d:.02s">An audience <span class="acc">built in</span>, not bolted on.</h2>
+      <p class="thesis-hero" data-anim style="--d:.08s">An AI showrunner with a built-in simulated audience of <span class="n200">200 persona-agents</span> that watch, remember (FSRS-style memory), churn, and comment — every episode <span class="ab">A/B-measured</span> before it earns a <span class="s2">season 2</span>.</p>
+    </div>
+    <div class="frame-row">
+      <div class="frame" data-anim style="--d:.16s">
+        <span class="corner c-tl" aria-hidden="true"></span><span class="corner c-br" aria-hidden="true"></span>
+        <div class="fr-no">FR-01 · SCREENING</div>
+        <svg class="fr-ic" width="30" height="26" viewBox="0 0 30 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13 C8 4 22 4 28 13 C22 22 8 22 2 13 Z"/><circle cx="15" cy="13" r="4"/></svg>
+        <h3>Watch</h3>
+        <p>Every beat screened per viewer; satisfaction events logged to the screening record.</p>
+      </div>
+      <div class="frame" data-anim style="--d:.22s">
+        <span class="corner c-tl" aria-hidden="true"></span><span class="corner c-br" aria-hidden="true"></span>
+        <div class="fr-no">FR-02 · MEMORY</div>
+        <svg class="fr-ic" width="30" height="26" viewBox="0 0 30 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 22 C10 22 12 6 26 4"/><path d="M3 4 V23 H26" stroke-dasharray="3 4" opacity=".55"/></svg>
+        <h3>Remember</h3>
+        <p>FSRS-inspired memories decay between episodes; cliffhangers stick, filler fades.</p>
+      </div>
+      <div class="frame" data-anim style="--d:.28s">
+        <span class="corner c-tl" aria-hidden="true"></span><span class="corner c-br" aria-hidden="true"></span>
+        <div class="fr-no">FR-03 · CHURN</div>
+        <svg class="fr-ic rose" width="30" height="26" viewBox="0 0 30 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="6" r="3.6"/><path d="M3 23 C3 15 15 15 15 23"/><path d="M23 4 V19 M19 15 L23 19.5 L27 15"/></svg>
+        <h3>Churn</h3>
+        <p>Two consecutive beats below a personal churn threshold and the viewer is gone.</p>
+      </div>
+      <div class="frame" data-anim style="--d:.34s">
+        <span class="corner c-tl" aria-hidden="true"></span><span class="corner c-br" aria-hidden="true"></span>
+        <div class="fr-no">FR-04 · SIGNAL</div>
+        <svg class="fr-ic green" width="30" height="26" viewBox="0 0 30 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4 H27 V17 H13 L7 23 V17 H3 Z"/></svg>
+        <h3>Comment</h3>
+        <p>In-voice reactions quote the exact beat that lost them — and feed the writer.</p>
+      </div>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">03 <em>/ 13</em></span>
+  </footer>
+</section>
+<!-- ============ 04 · ARCHITECTURE ============ -->
+<section class="slide" id="s4">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">03 · ARCHITECTURE</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <div class="arch-head">
+      <h2 class="hl" data-anim style="--d:.02s">One pipeline, <span class="acc">two kinds of code.</span></h2>
+      <div class="legend" data-anim style="--d:.1s">
+        <span class="lg"><span class="sw rail" aria-hidden="true"></span>DETERMINISTIC RAILS — pure TS owns every auditable decision</span>
+        <span class="lg"><span class="sw llm" aria-hidden="true"></span>PROBABILISTIC CORE — Qwen creates inside the rails</span>
+      </div>
+    </div>
+    <svg class="arch" data-anim style="--d:.14s" viewBox="0 0 1200 380" role="img" aria-label="Sweeps architecture: Writer to Compiler gate to Render to Audience to Analytics to Optimizer, looping back to the Writer">
+      <defs>
+        <marker id="arrA" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 Z" fill="#d97706"/>
+        </marker>
+        <marker id="arrAmber" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 Z" fill="#b45309"/>
+        </marker>
+      </defs>
+      <!-- gate framing the compiler -->
+      <rect x="204" y="114" width="192" height="10" rx="5" fill="#d97706"/>
+      <rect x="212" y="124" width="6" height="162" rx="3" fill="#d97706"/>
+      <rect x="382" y="124" width="6" height="162" rx="3" fill="#d97706"/>
+      <circle cx="300" cy="106" r="14" fill="#faf7f2" stroke="#d97706" stroke-width="2"/>
+      <path d="M303 96 L292 110 H299 L297 118 L308 104 H301 Z" fill="#d97706"/>
+      <!-- connectors -->
+      <g stroke="#d97706" stroke-width="2">
+        <line x1="178" y1="212" x2="206" y2="212" marker-end="url(#arrA)"/>
+        <line x1="390" y1="212" x2="417" y2="212" marker-end="url(#arrA)"/>
+        <line x1="578" y1="212" x2="617" y2="212" marker-end="url(#arrA)"/>
+        <line x1="778" y1="212" x2="817" y2="212" marker-end="url(#arrA)"/>
+        <line x1="978" y1="212" x2="1017" y2="212" marker-end="url(#arrA)"/>
+      </g>
+      <text x="404" y="200" text-anchor="middle" font-size="9.5" font-weight="700" letter-spacing="1.5" fill="#a29a8e" font-family="JetBrains Mono, Menlo, Consolas, monospace">PASS</text>
+      <!-- loop back -->
+      <path d="M1100 282 V330 H100 V286" fill="none" stroke="#b45309" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#arrAmber)"/>
+      <rect x="468" y="317" width="264" height="26" rx="13" fill="#faf7f2"/>
+      <text x="600" y="334.5" text-anchor="middle" font-size="12" font-weight="700" letter-spacing="2" fill="#b45309" font-family="JetBrains Mono, Menlo, Consolas, monospace">BEAT DIRECTIVE → EPISODE N+1</text>
+      <!-- node 1 · writer (probabilistic) -->
+      <g>
+        <rect x="24" y="150" width="152" height="124" rx="14" fill="#fffdf9" stroke="#e11d48" stroke-width="1.6" stroke-dasharray="7 5"/>
+        <text x="100" y="186" text-anchor="middle" font-size="15" font-weight="700" fill="#1c1917">WRITER AGENT</text>
+        <text x="100" y="207" text-anchor="middle" font-size="11.5" fill="#57534e">Qwen · beat plans</text>
+        <text x="100" y="223" text-anchor="middle" font-size="11.5" fill="#57534e">8–12 typed beats</text>
+        <rect x="48" y="234" width="104" height="20" rx="10" fill="#fbe3e9"/>
+        <text x="100" y="247.5" text-anchor="middle" font-size="10" font-weight="700" letter-spacing="1" fill="#be123c" font-family="JetBrains Mono, Menlo, Consolas, monospace">LLM · QWEN</text>
+      </g>
+      <!-- node 2 · compiler (deterministic, gated) -->
+      <g>
+        <rect x="224" y="150" width="152" height="124" rx="14" fill="#fdf3de" stroke="#d97706" stroke-width="2"/>
+        <text x="300" y="184" text-anchor="middle" font-size="15" font-weight="700" fill="#1c1917">CONTINUITY</text>
+        <text x="300" y="201" text-anchor="middle" font-size="15" font-weight="700" fill="#1c1917">COMPILER</text>
+        <text x="300" y="220" text-anchor="middle" font-size="11.5" fill="#57534e">pure TS · zero AI calls</text>
+        <rect x="230" y="234" width="140" height="20" rx="10" fill="#f3e2b8"/>
+        <text x="300" y="247.5" text-anchor="middle" font-size="10" font-weight="700" letter-spacing="1" fill="#92400e" font-family="JetBrains Mono, Menlo, Consolas, monospace">0 TOKENS · PURE TS</text>
+      </g>
+      <!-- node 3 · render (probabilistic) -->
+      <g>
+        <rect x="424" y="150" width="152" height="124" rx="14" fill="#fffdf9" stroke="#e11d48" stroke-width="1.6" stroke-dasharray="7 5"/>
+        <text x="500" y="186" text-anchor="middle" font-size="15" font-weight="700" fill="#1c1917">RENDER CREW</text>
+        <text x="500" y="207" text-anchor="middle" font-size="11.5" fill="#57534e">stills · Ken Burns</text>
+        <text x="500" y="223" text-anchor="middle" font-size="11.5" fill="#57534e">VLM consistency gate</text>
+        <rect x="448" y="234" width="104" height="20" rx="10" fill="#fbe3e9"/>
+        <text x="500" y="247.5" text-anchor="middle" font-size="10" font-weight="700" letter-spacing="1" fill="#be123c" font-family="JetBrains Mono, Menlo, Consolas, monospace">LLM · VISION</text>
+      </g>
+      <!-- node 4 · audience (deterministic sim) -->
+      <g>
+        <rect x="624" y="150" width="152" height="124" rx="14" fill="#f9edcf" stroke="#d97706" stroke-width="2.4"/>
+        <text x="700" y="186" text-anchor="middle" font-size="15" font-weight="700" fill="#1c1917">AUDIENCE PANEL</text>
+        <text x="700" y="207" text-anchor="middle" font-size="11.5" fill="#57534e">200 seeded personas</text>
+        <text x="700" y="223" text-anchor="middle" font-size="11.5" fill="#57534e">memory · churn</text>
+        <rect x="629" y="234" width="142" height="20" rx="10" fill="#f3e2b8"/>
+        <text x="700" y="247.5" text-anchor="middle" font-size="10" font-weight="700" letter-spacing="1" fill="#92400e" font-family="JetBrains Mono, Menlo, Consolas, monospace">SEEDED SIM · 200</text>
+      </g>
+      <!-- node 5 · analytics -->
+      <g>
+        <rect x="824" y="150" width="152" height="124" rx="14" fill="#fdf3de" stroke="#d97706" stroke-width="2"/>
+        <text x="900" y="186" text-anchor="middle" font-size="15" font-weight="700" fill="#1c1917">ANALYTICS</text>
+        <text x="900" y="207" text-anchor="middle" font-size="11.5" fill="#57534e">KM survival curves</text>
+        <text x="900" y="223" text-anchor="middle" font-size="11.5" fill="#57534e">cliffs · segments</text>
+        <rect x="837" y="234" width="126" height="20" rx="10" fill="#f3e2b8"/>
+        <text x="900" y="247.5" text-anchor="middle" font-size="10" font-weight="700" letter-spacing="1" fill="#92400e" font-family="JetBrains Mono, Menlo, Consolas, monospace">PURE TS · KM</text>
+      </g>
+      <!-- node 6 · optimizer -->
+      <g>
+        <rect x="1024" y="150" width="152" height="124" rx="14" fill="#fdf3de" stroke="#d97706" stroke-width="2"/>
+        <text x="1100" y="186" text-anchor="middle" font-size="15" font-weight="700" fill="#1c1917">OPTIMIZER</text>
+        <text x="1100" y="207" text-anchor="middle" font-size="11.5" fill="#57534e">Thompson sampling</text>
+        <text x="1100" y="223" text-anchor="middle" font-size="11.5" fill="#57534e">Beta posteriors</text>
+        <rect x="1036" y="234" width="128" height="20" rx="10" fill="#f3e2b8"/>
+        <text x="1100" y="247.5" text-anchor="middle" font-size="10" font-weight="700" letter-spacing="1" fill="#92400e" font-family="JetBrains Mono, Menlo, Consolas, monospace">BETA POSTERIOR</text>
+      </g>
+    </svg>
+    <div class="arch-cap" data-anim style="--d:.26s">
+      <span class="chip setup"><span class="dot"></span>ZOD-VALIDATED LLM OUTPUTS</span>
+      <span class="chip setup"><span class="dot"></span>PERSIST BEFORE ADVANCE · CRASH-SAFE RESUME</span>
+      <span class="chip setup"><span class="dot"></span>METERED PER CALL · STAGE CAPS</span>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">04 <em>/ 13</em></span>
+  </footer>
+</section>
+
+<!-- ============ 05 · THE GATE ============ -->
+<section class="slide" id="s5">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">04 · DIFFERENTIATOR — THE GATE</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <div class="gate-grid">
+      <div class="gate-left">
+        <h2 class="hl" data-anim style="--d:.02s">The Gate stops <span class="accr">unrenderable</span> scripts for free.</h2>
+        <div class="gate-hero" data-anim style="--d:.1s">
+          <span class="zero">0</span>
+          <span class="zl">GENERATION TOKENS SPENT ON A REJECTED SCRIPT — THE GATE IS PURE TYPESCRIPT.</span>
+        </div>
+        <div class="rule-grid" data-anim style="--d:.18s">
+          <span class="rule-chip">C1-CAST</span><span class="rule-chip">C2-PRESENCE</span><span class="rule-chip">C3-TIMELINE</span><span class="rule-chip">C4-PROP</span>
+          <span class="rule-chip">C5-WARDROBE</span><span class="rule-chip">C6-LORE</span><span class="rule-chip">C7-BUDGET</span><span class="rule-chip">C8-DURATION</span>
+        </div>
+        <p class="gate-note" data-anim style="--d:.26s"><b>8 deterministic rules</b> check cast, presence, timeline, props, wardrobe, lore, budget and duration. Every violation ships a <b>machine-actionable fix</b> the Writer auto-applies — bounded to <b>≤ 3 repair loops</b>, then an honest COMPILE_FAILED.</p>
+      </div>
+      <div class="console" data-anim style="--d:.16s">
+        <div class="con-bar">
+          <span class="con-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          COMPILE REPORT — fixtures/bad-beat.json
+          <span class="con-status fail">FAIL</span>
+        </div>
+        <div class="con-body">
+          <div class="viol">
+            <span class="badge err">ERROR · C2-PRESENCE</span><span class="loc">BEATS 3 → 4</span>
+            <p>“mara” in DOCK_OFFICE (beat 3 · NIGHT) overlaps RIDGE_LINE (beat 4 · NIGHT).</p>
+            <p class="fix"><b>FIX →</b> merge beats 3–4, or advance beat 4 to DUSK.</p>
+          </div>
+          <div class="viol">
+            <span class="badge err">ERROR · C4-PROP</span><span class="loc">BEAT 6</span>
+            <p>“brass_key” USE before INTRODUCE — dropped props can’t return unannounced.</p>
+            <p class="fix"><b>FIX →</b> add INTRODUCE in beat 2 (desk drawer).</p>
+          </div>
+          <div class="viol warn">
+            <span class="badge warn">WARN · C7-BUDGET</span><span class="loc">BEATS 5 · 8</span>
+            <p>VIDEO render exceeds the render stage cap by ~18%.</p>
+            <p class="fix"><b>FIX →</b> downgrade VIDEO→STILL (Ken Burns metadata kept).</p>
+          </div>
+        </div>
+        <div class="con-foot">
+          <span>TOKENS SPENT <b>$0.00</b></span>
+          <span>EST. RENDER SAVED <b class="good">~$0.72</b></span>
+          <span>REPAIR LOOP <b>1 / 3</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">05 <em>/ 13</em></span>
+  </footer>
+</section>
+
+<!-- ============ 06 · THE AUDIENCE ============ -->
+<section class="slide" id="s6">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">05 · DIFFERENTIATOR — THE AUDIENCE</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <div class="aud-wrap">
+      <div class="hl-row">
+        <h2 class="hl" data-anim style="--d:.02s">An audience that <span class="acc">actually remembers</span>.</h2>
+        <span class="chip good" data-anim style="--d:.08s"><span class="dot"></span>TRACK 1 · MEMORY EVIDENCE</span>
+      </div>
+      <div class="aud-grid">
+        <div class="aud-left" data-anim style="--d:.14s">
+          <span class="lab">12 ARCHETYPES · SEEDED JITTER PER VIEWER</span>
+          <div class="persona-grid">
+            <span class="persona"><i></i>BINGE-WATCHER</span>
+            <span class="persona"><i></i>CASUAL SCROLLER</span>
+            <span class="persona"><i></i>GENRE PURIST</span>
+            <span class="persona"><i></i>DRAMA QUEEN</span>
+            <span class="persona"><i></i>CYNIC</span>
+            <span class="persona"><i></i>COMPLETIST</span>
+            <span class="persona"><i></i>MOOD VIEWER</span>
+            <span class="persona"><i></i>LOSS-AVERSE FAN</span>
+            <span class="persona"><i></i>THEORY-CRAFTER</span>
+            <span class="persona"><i></i>SKIMMER</span>
+            <span class="persona"><i></i>LOYALIST</span>
+            <span class="persona"><i></i>CRITIC</span>
+          </div>
+          <p class="persona-note">affinity per beat type · attention span 3–12 beats · churn threshold 0.25–0.6 · loyalty + comment probability</p>
+        </div>
+        <div class="aud-right">
+          <div class="card" data-anim style="--d:.2s">
+            <div class="card-h"><b>VIEWER MEMORY — FSRS-INSPIRED</b><span class="chip good"><span class="dot"></span>CAUSAL</span></div>
+            <div class="rows">
+              <div class="math">stability′ = stability + (1 − stability) · <span class="hl-a">impact</span></div>
+              <div class="math">R = exp(−Δdays / (0.9 · <span class="hl-a">stability</span>))</div>
+              <div class="impact-row">
+                <span class="impact-chip">CLIFFHANGER 0.9</span>
+                <span class="impact-chip">TWIST 0.8</span>
+                <span class="impact-chip">REVEAL 0.6</span>
+                <span class="impact-chip">HOOK 0.4</span>
+              </div>
+              <div class="sim-line">Prior CLIFFHANGER with <span class="mono">R &gt; 0.5</span> → <b class="mono" style="color:var(--emerald)">+0.10</b> satisfaction on the next episode’s HOOK.</div>
+              <div class="verdict-line">→ memory is causal, not decorative.</div>
+            </div>
+          </div>
+          <div class="card" data-anim style="--d:.28s">
+            <div class="card-h"><b>WATCH SIMULATOR — SEEDED, PER BEAT</b><span class="chip twist"><span class="dot"></span>CHURN RULE</span></div>
+            <div class="rows">
+              <div class="math">S<sub>t</sub> = 0.85·S<sub>t−1</sub> + 0.15·s<sub>i</sub></div>
+              <div class="sim-line">s<sub>i</sub> = quality + affinity + novelty + recall − fatigue ( + seeded ε )</div>
+              <div class="sim-line"><span class="mono hl-r" style="color:var(--rose);font-weight:700">S<sub>t</sub> &lt; churnThreshold</span> for <b>2 consecutive beats</b> → the viewer drops, dropAtBeat logged.</div>
+              <div class="sim-line mono" style="font-size:11px;color:var(--ink3)">ε ~ N(0, 0.05) · Math.random banned in sim paths — every event derives from (show.seed, viewer.seed, ep, beat)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">06 <em>/ 13</em></span>
+  </footer>
+</section>
+<!-- ============ 07 · THE LOOP ============ -->
+<section class="slide" id="s7">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">06 · THE OPTIMIZER LOOP</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <h2 class="hl" data-anim style="--d:.02s">Cliffs become <span class="acc">directives</span>, not apologies.</h2>
+    <div class="loop-flow">
+      <div class="step" data-anim style="--d:.08s">
+        <span class="n">1</span>
+        <h4>Detect cliffs</h4>
+        <p>Analytics ranks the worst drop-off slots per episode.</p>
+      </div>
+      <div class="loop-arrow" aria-hidden="true">→</div>
+      <div class="step" data-anim style="--d:.13s">
+        <span class="n">2</span>
+        <h4>Propose variants</h4>
+        <p>Writer drafts 2 rewrites for the worst 1–2 slots.</p>
+      </div>
+      <div class="loop-arrow" aria-hidden="true">→</div>
+      <div class="step" data-anim style="--d:.18s">
+        <span class="n">3</span>
+        <h4>Micro-screen</h4>
+        <p>40-viewer subsample, text-only — no re-render.</p>
+      </div>
+      <div class="loop-arrow" aria-hidden="true">→</div>
+      <div class="step hot" data-anim style="--d:.23s">
+        <span class="n">4</span>
+        <h4>Thompson sample</h4>
+        <p>Beta posteriors pick the winner; ties break on evidence.</p>
+      </div>
+      <div class="loop-arrow" aria-hidden="true">→</div>
+      <div class="step" data-anim style="--d:.28s">
+        <span class="n">5</span>
+        <h4>Inject directive</h4>
+        <p>Chosen variant lands in the next episode’s writer prompt.</p>
+      </div>
+    </div>
+    <div class="loop-bottom">
+      <div class="receipt" data-anim style="--d:.34s">
+        <div class="receipt-h"><span>EXPERIMENT #014 · EP2 · SLOT 7 — CLIFFHANGER</span><span class="chip good"><span class="dot"></span>RESOLVED</span></div>
+        <div class="rrow a">
+          <span class="rb">A</span>
+          <span><span class="vname">“cold open on the letter”</span><span class="vsub" style="display:block">variantA · Beta(9, 12)</span></span>
+          <span class="rmeta">reward 0.41 · n 20</span>
+        </div>
+        <div class="rrow b chosen">
+          <span class="rb">B</span>
+          <span><span class="vname">“open on the pursuit”</span><span class="vsub" style="display:block">variantB · Beta(15, 7)</span></span>
+          <span class="rmeta">reward 0.68 · n 20<br><span class="chip good" style="margin-top:4px"><span class="dot"></span>CHOSEN</span></span>
+        </div>
+        <div class="rfoot">evidence → <b>40-viewer</b> micro-screen · Thompson draw over Beta posteriors · directive injected into <b>EP3 · beat 7</b></div>
+      </div>
+      <div class="loop-copy" data-anim style="--d:.42s">
+        <p><b>Cheap by construction.</b> Micro-screening is text-only: seconds of FAST-tier inference instead of re-render dollars.</p>
+        <p><b>Auditable by default.</b> Every decision ships with its receipt — n, rewards, posterior, directive — persisted to the Experiment table for judges to inspect.</p>
+        <div class="chiprow">
+          <span class="chip reveal"><span class="dot"></span>EXPLORE + EXPLOIT</span>
+          <span class="chip setup"><span class="dot"></span>EVIDENCE PERSISTED</span>
+          <span class="chip hook"><span class="dot"></span>WRITER-IN-THE-LOOP</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">07 <em>/ 13</em></span>
+  </footer>
+</section>
+
+<!-- ============ 08 · DUAL-ARM PROOF (dark) ============ -->
+<section class="slide dark" id="s8">
+  <div class="glow g-bl" data-decor aria-hidden="true"></div>
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">07 · DUAL-ARM PROOF</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <div class="verdict-card" data-anim style="--d:.04s">
+      <div class="verdict-tag"><span class="chip"><span class="dot"></span>[MEASURED — SEE README]</span></div>
+      <p class="verdict">Treatment retained <span class="x">+[X] pts</span> at <span class="x">[Y]% lower</span> cost per retained viewer.</p>
+    </div>
+    <div class="dual-grid">
+      <div class="dpanel" data-anim style="--d:.14s">
+        <div class="dlegend">
+          <span class="chip setup"><span class="dot" style="background:#a8a29e"></span>ARM A — WRITER-ONLY CONTROL</span>
+          <span class="chip hook"><span class="dot"></span>ARM B — FULL LOOP</span>
+        </div>
+        <svg viewBox="0 0 680 335" role="img" aria-label="Retention curves: arm B stays above arm A across three episodes" style="width:100%;height:auto;display:block">
+          <g stroke="#262119" stroke-width="1">
+            <line x1="64" y1="50" x2="592" y2="50"/>
+            <line x1="64" y1="112.5" x2="592" y2="112.5"/>
+            <line x1="64" y1="175" x2="592" y2="175"/>
+            <line x1="64" y1="237.5" x2="592" y2="237.5"/>
+          </g>
+          <text x="64" y="26" font-size="10.5" letter-spacing="2" fill="#7d7466" font-family="JetBrains Mono, Menlo, Consolas, monospace">RETENTION — KM SURVIVAL</text>
+          <g font-size="11" fill="#7d7466" text-anchor="end" font-family="JetBrains Mono, Menlo, Consolas, monospace">
+            <text x="54" y="54">100%</text><text x="54" y="116.5">75</text><text x="54" y="179">50</text><text x="54" y="241.5">25</text><text x="54" y="304">0</text>
+          </g>
+          <line x1="64" y1="300" x2="592" y2="300" stroke="#3a332a" stroke-width="1.5"/>
+          <g font-size="11.5" letter-spacing="2" fill="#a89f8f" text-anchor="middle" font-family="JetBrains Mono, Menlo, Consolas, monospace">
+            <text x="150" y="325">EP1</text><text x="360" y="325">EP2</text><text x="555" y="325">EP3</text>
+          </g>
+          <path d="M64 50 H150 V145 H245 V155 H340 V178 H440 V188 H555 V205 H592" fill="none" stroke="#a8a29e" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M64 50 H150 V115 H255 V128 H360 V143 H465 V150 H555 V163 H592" fill="none" stroke="#f59e0b" stroke-width="3.5" stroke-linejoin="round"/>
+          <g fill="#e11d48">
+            <circle cx="150" cy="145" r="3.4"/><circle cx="340" cy="178" r="3.4"/>
+          </g>
+          <g fill="#e11d48">
+            <circle cx="150" cy="115" r="3"/><circle cx="360" cy="143" r="3"/>
+          </g>
+          <circle cx="592" cy="205" r="4.5" fill="#a8a29e"/>
+          <circle cx="592" cy="163" r="5.5" fill="#f59e0b"/>
+          <g font-size="15" font-weight="700" font-family="JetBrains Mono, Menlo, Consolas, monospace">
+            <text x="602" y="209" fill="#b9ae9b">38%</text>
+            <text x="602" y="167" fill="#f59e0b">55%</text>
+          </g>
+          <rect x="420" y="58" width="172" height="30" rx="15" fill="rgba(5,150,105,.14)" stroke="#059669" stroke-width="1.2"/>
+          <text x="506" y="77.5" text-anchor="middle" font-size="11.5" font-weight="700" fill="#34d399" font-family="JetBrains Mono, Menlo, Consolas, monospace">+[X] PTS RETENTION Δ</text>
+        </svg>
+      </div>
+      <div class="dtable" data-anim style="--d:.22s">
+        <div class="drow head"><span>METRIC</span><span>ARM A</span><span>ARM B</span></div>
+        <div class="drow"><span>RETENTION EP1→EP3</span><span class="av">[—] pts</span><span class="bv">[—] pts</span></div>
+        <div class="drow"><span>COST / RETAINED VIEWER</span><span class="av">$[—]</span><span class="bv">$[—]</span></div>
+        <div class="drow"><span>CLIFFS / EPISODE</span><span class="av">[—]</span><span class="bv">[—]</span></div>
+        <div class="drow"><span>PANEL</span><span class="av">200</span><span class="bv">200</span></div>
+        <p class="dnote">Arm B consumes cliffs, viewer quotes and Thompson-sampled beat variants; Arm A never sees the audience. <b>Same seed · same show bible · 6 episodes per arm.</b></p>
+      </div>
+    </div>
+    <p class="dual-foot" data-anim style="--d:.3s">ONE SHOW, TWO FATES — THE ONLY DIFFERENCE IS THE LOOP.</p>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">08 <em>/ 13</em></span>
+  </footer>
+</section>
+
+<!-- ============ 09 · LEDGER ============ -->
+<section class="slide" id="s9">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">08 · THE LEDGER</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <h2 class="hl" data-anim style="--d:.02s">Attention, priced <span class="acc">per viewer</span>.</h2>
+    <div class="ledger-grid">
+      <div class="ledger" data-anim style="--d:.1s">
+        <div class="ledger-h"><span>SWEEPS · COST LEDGER — DEMO RUN</span><span class="chip setup"><span class="dot"></span>MONOSPACE, ON PURPOSE</span></div>
+        <div class="lrow">
+          <span class="k">COMPILE-GATE REJECTS — fixtures/bad-beat.json</span><span class="lead"></span>
+          <span class="v">$0.00 SPENT · ~$0.72 SAVED</span>
+          <span class="chip good"><span class="dot"></span>MEASURED</span>
+        </div>
+        <div class="lrow">
+          <span class="k">PER-EPISODE SPEND — STAGE-CAPPED</span><span class="lead"></span>
+          <span class="v">$[—] / EPISODE</span>
+        </div>
+        <div class="lrow hero">
+          <span class="k">COST PER RETAINED VIEWER</span><span class="lead"></span>
+          <span class="v">ARM A $[—] · ARM B $[—]</span>
+        </div>
+        <div class="lrow">
+          <span class="k">RETENTION Δ — EP1 → EP3</span><span class="lead"></span>
+          <span class="v">A [—] PTS · B [—] PTS</span>
+        </div>
+        <div class="lrow">
+          <span class="k">PANEL THROUGHPUT</span><span class="lead"></span>
+          <span class="v">200 PERSONAS × 6 EPISODES</span>
+        </div>
+        <div class="lrow">
+          <span class="k">REPRODUCIBILITY</span><span class="lead"></span>
+          <span class="v">SAME SEED → IDENTICAL CURVES</span>
+        </div>
+        <div class="ledger-f">* live rows are computed from the database at run time — never hardcoded. Placeholders land after the final measured run.</div>
+      </div>
+      <div class="num-cards">
+        <div class="numcard" data-anim style="--d:.2s">
+          <div class="n">200</div>
+          <div class="l">PANEL SIZE — PERSONA-AGENTS</div>
+          <p>12 archetypes × seeded jitter; every viewer carries decaying memory and a churn threshold.</p>
+        </div>
+        <div class="numcard good" data-anim style="--d:.28s">
+          <div class="n">0×</div>
+          <div class="l">MATH.RANDOM IN SIM PATHS</div>
+          <p><span class="mono">mulberry32(show.seed, viewer.seed, ep, beat)</span> — same seed replays byte-identical curves.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">09 <em>/ 13</em></span>
+  </footer>
+</section>
+<!-- ============ 10 · ENGINEERING RECEIPTS ============ -->
+<section class="slide" id="s10">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">09 · ENGINEERING RECEIPTS</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <h2 class="hl" data-anim style="--d:.02s">Receipts, <span class="acc">not vibes</span>.</h2>
+    <div class="rcpts">
+      <div class="rcard card" data-anim style="--d:.08s">
+        <div class="rt"><span class="rn">01</span> STAGE CAPS + DEGRADATION LADDER</div>
+        <div class="capbar" aria-label="Budget split: writer 25, render 45, audience 20, other 10">
+          <i style="width:25%;background:#d97706">WRITER 25%</i>
+          <i style="width:45%;background:#f59e0b">RENDER 45%</i>
+          <i style="width:20%;background:#78716c">AUD 20%</i>
+          <i style="width:10%;background:#c9bfa8;color:#57534e">10%</i>
+        </div>
+        <p>Every AI call is metered per-token / per-image into the cost ledger. At <b>90% of any cap</b> the ladder kicks in:</p>
+        <p class="ladder"><b>video → stills</b> → reaction sampling → subsample shrink</p>
+      </div>
+      <div class="rcard card" data-anim style="--d:.14s">
+        <div class="rt"><span class="rn">02</span> ZOD-VALIDATED OUTPUTS</div>
+        <p>Every LLM output is schema-checked. One retry with the validation error appended — then a <b>deterministic fallback template</b> takes over. The pipeline never dead-ends on a bad generation.</p>
+        <div class="stateflow">
+          <span class="state ok">LLM → ZOD ✓ → COMMIT</span>
+          <span class="state">ZOD ✗ → RETRY ×1</span>
+          <span class="state">STILL ✗ → FALLBACK TEMPLATE</span>
+        </div>
+      </div>
+      <div class="rcard card" data-anim style="--d:.2s">
+        <div class="rt"><span class="rn">03</span> CRASH-SAFE, RESUMABLE PIPELINE</div>
+        <div class="stateflow">
+          <span class="state">WRITING</span><span class="state">COMPILING ⟲ ≤3</span><span class="state">RENDERING</span><span class="state">SCREENING</span><span class="state">ANALYZING</span><span class="state ok">DONE</span>
+        </div>
+        <p>Every step <b>persists its output + a JobLog before advancing</b>. Kill it mid-run; the runner resumes from the last good state.</p>
+      </div>
+      <div class="rcard card" data-anim style="--d:.26s">
+        <div class="rt"><span class="rn">04</span> HONEST STATUSES</div>
+        <div class="state-loop">
+          <div class="strow"><span class="chip twist"><span class="dot"></span>COMPILE_FAILED</span><p style="margin:0">A creative failure — report rendered in the UI, tokens saved shown. A feature, not a bug.</p></div>
+          <div class="strow"><span class="chip setup"><span class="dot"></span>PIPELINE_ERROR</span><p style="margin:0">An infrastructure failure — retried, surfaced, and never allowed to masquerade as a creative one.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">10 <em>/ 13</em></span>
+  </footer>
+</section>
+
+<!-- ============ 11 · STACK & DEPLOYMENT ============ -->
+<section class="slide" id="s11">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">10 · STACK &amp; DEPLOYMENT</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <h2 class="hl" data-anim style="--d:.02s">One codebase, <span class="acc">two clouds</span>.</h2>
+    <div class="stack-grid">
+      <div class="stack-card" data-anim style="--d:.1s">
+        <div class="srow"><span class="sk">RUNTIME</span><span class="sv">Next.js 16 App Router<span class="m">TypeScript strict · single dashboard, 5 tabs · 13 REST API routes</span></span></div>
+        <div class="srow"><span class="sk">DATA</span><span class="sv">Prisma + SQLite<span class="m">11 models — Show · Episode · Beat · Viewer · ViewerMemory · Experiment · CostEntry · JobLog …</span></span></div>
+        <div class="srow"><span class="sk">UI</span><span class="sv">shadcn/ui + Tailwind 4 + Recharts<span class="m">warm-studio dashboard · live retention curves · audience wall</span></span></div>
+        <div class="srow"><span class="sk">SIM</span><span class="sv">Pure-TS seeded engines<span class="m">mulberry32 RNG · FSRS memory · Kaplan–Meier · Thompson — all unit-testable, zero AI</span></span></div>
+      </div>
+      <div class="stack-card" data-anim style="--d:.18s">
+        <div style="padding:16px 20px 6px">
+          <div class="switch" role="img" aria-label="Provider switch: sandbox or qwen">
+            <span class="opt on">SANDBOX</span><span class="opt">QWEN CLOUD</span>
+          </div>
+          <p class="envline">the only line that changes: <code>AI_PROVIDER=sandbox|qwen</code></p>
+        </div>
+        <div class="prow"><span class="sk">SANDBOX</span><span class="sv">z-ai-web-dev-sdk — zero keys, runs anywhere (including the judge’s sandbox)</span></div>
+        <div class="prow"><span class="sk">QWEN CLOUD</span><span class="sv">DashScope OpenAI-compatible endpoint — production parity
+          <span class="model-chips">
+            <span class="mchip">qwen3.7-max · WRITER</span>
+            <span class="mchip">qwen-plus · FAST</span>
+            <span class="mchip">qwen-vl-plus · VISION</span>
+            <span class="mchip">wan · VIDEO-READY</span>
+          </span>
+        </span></div>
+        <p class="parity-foot">→ identical Zod JSON contracts · identical metering · one env switch</p>
+      </div>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">11 <em>/ 13</em></span>
+  </footer>
+</section>
+
+<!-- ============ 12 · DEMO FLOW ============ -->
+<section class="slide" id="s12">
+  <header class="chrome">
+    <div class="wordmark"><span class="wm-mark" aria-hidden="true"></span>SWEEPS</div>
+    <div class="chrome-right"><span class="kicker">11 · DEMO FLOW</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
+  </header>
+  <div class="content">
+    <h2 class="hl" data-anim style="--d:.02s">Three minutes, <span class="acc">five beats</span>.</h2>
+    <div class="demo-strip">
+      <div class="dframe" data-anim style="--d:.08s">
+        <span class="tc">0:00</span>
+        <h4>The hook</h4>
+        <p>“Every AI showrunner can generate an episode. None of them know if anyone would watch.”</p>
+        <span class="chip hook"><span class="dot"></span>HOOK</span>
+      </div>
+      <div class="dframe" data-anim style="--d:.14s">
+        <span class="tc">0:20</span>
+        <h4>Create the show</h4>
+        <p>One-line premise → show bible, 12 archetypes and the 200-viewer panel materialize.</p>
+        <span class="chip setup"><span class="dot"></span>SETUP</span>
+      </div>
+      <div class="dframe" data-anim style="--d:.2s">
+        <span class="tc">0:50</span>
+        <h4>The Gate</h4>
+        <p>Bad fixture rejected — 2 ERRORs + 1 WARN, $0.00 spent; repair loop counts down live.</p>
+        <span class="chip reveal"><span class="dot"></span>REVEAL</span>
+      </div>
+      <div class="dframe" data-anim style="--d:.26s">
+        <span class="tc">1:30</span>
+        <h4>The Audience</h4>
+        <p>200 personas screen Ep1: retention curve draws, comment wall fills, memory inspector decays.</p>
+        <span class="chip twist"><span class="dot"></span>TWIST</span>
+      </div>
+      <div class="dframe" data-anim style="--d:.32s">
+        <span class="tc">2:10</span>
+        <h4>Loop + verdict</h4>
+        <p>Thompson picks the variant; dual-arm table lands; close on “measure attention, not output.”</p>
+        <span class="chip cliff"><span class="dot"></span>CLIFFHANGER</span>
+      </div>
+    </div>
+    <div class="demo-note">
+      <span>§15 DEMO SCRIPT · SINGLE SCREEN RECORDING · ONE TAKE</span>
+      <span>ENDS ON THE LIVE DASHBOARD — DUAL MODE RUNNING</span>
+    </div>
+  </div>
+  <footer class="chrome-foot">
+    <span>MEASURED ATTENTION PER DOLLAR</span>
+    <span class="foot-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="num">12 <em>/ 13</em></span>
+  </footer>
+</section>
+
+<!-- ============ 13 · CLOSING (dark) ============ -->
+<section class="slide dark" id="s13">
+  <div class="glow g-c" data-decor aria-hidden="true"></div>
+  <div class="close-strip" data-decor aria-hidden="true"><svg class="filmstrip-svg" viewBox="0 0 1200 84"><use href="#filmstrip"/></svg></div>
+  <div class="close-body">
+    <span class="close-kicker" data-anim style="--d:.02s">SWEEPS — FINAL SLATE</span>
+    <h1 class="close-title" data-anim style="--d:.08s">Measure <em>attention</em>,<br>not output.</h1>
+    <a class="repo" data-anim style="--d:.18s" href="https://github.com/Roy-Wanyoike/sweeps"><span class="gh" aria-hidden="true"></span>github.com/Roy-Wanyoike/sweeps</a>
+    <div class="tracks" data-anim style="--d:.26s">
+      <span class="tchip primary">TRACK 2 · AI SHOWRUNNER — PRIMARY</span>
+      <span class="tchip">CROSS-TRACK 1 · MEMORYAGENT</span>
+      <span class="tchip">CROSS-TRACK 3 · AGENT SOCIETY</span>
+    </div>
+  </div>
+  <p class="close-foot" data-anim style="--d:.34s">[YOUR TEAM] — THANK YOU<br>JUDGES: OPEN THE DASHBOARD → CREATE DEMO SHOW → RUN FULL DEMO (DUAL)</p>
+</section>
+</div>
+</div>
+
+<div id="hud">01 / 13</div>
+<div id="hint">← → NAVIGATE · SPACE ADVANCE · F FULLSCREEN</div>
+
+<script>
+(function(){
+  var N=13, cur=-1;
+  var slides=[].slice.call(document.querySelectorAll('.slide'));
+  var stage=document.getElementById('stage');
+  var bar=document.getElementById('progress');
+  var hud=document.getElementById('hud');
+  function pad(n){return (n<10?'0':'')+n}
+  function show(n,push){
+    n=Math.max(0,Math.min(N-1,n));
+    if(n===cur)return;
+    if(cur>=0)slides[cur].classList.remove('active');
+    cur=n;
+    slides[cur].classList.add('active');
+    hud.textContent=pad(cur+1)+' / '+pad(N);
+    bar.style.width=((cur+1)/N*100)+'%';
+    if(push!==false)history.replaceState(null,'','#'+(cur+1));
+  }
+  function next(){show(cur+1)} function prev(){show(cur-1)}
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '||e.key==='Spacebar'){e.preventDefault();next()}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='Backspace'){e.preventDefault();prev()}
+    else if(e.key==='Home'){show(0)} else if(e.key==='End'){show(N-1)}
+    else if(e.key==='f'||e.key==='F'){fs()}
+  });
+  document.getElementById('viewport').addEventListener('click',function(e){
+    if(e.target.closest&&e.target.closest('a'))return; next();
+  });
+  var tx=0;
+  document.addEventListener('touchstart',function(e){tx=e.changedTouches[0].clientX},{passive:true});
+  document.addEventListener('touchend',function(e){var dx=e.changedTouches[0].clientX-tx;if(dx<-50)next();else if(dx>50)prev()},{passive:true});
+  function fit(){var s=Math.min(innerWidth/1280,innerHeight/720);stage.style.transform='scale('+s+')'}
+  addEventListener('resize',fit); document.addEventListener('fullscreenchange',fit);
+  function fs(){ if(document.fullscreenElement){document.exitFullscreen();} else if(document.documentElement.requestFullscreen){document.documentElement.requestFullscreen();} }
+  var h=parseInt((location.hash||'').replace('#',''),10);
+  show(isNaN(h)?0:h-1,false); fit();
+  addEventListener('hashchange',function(){
+    var n=parseInt((location.hash||'').replace('#',''),10);
+    if(!isNaN(n)&&n>=1&&n<=N)show(n-1,false);
+  });
+  setTimeout(function(){var x=document.getElementById('hint'); if(x)x.parentNode.removeChild(x)},6200);
+})();
+</script>
+</body>
+</html>

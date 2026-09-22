@@ -108,13 +108,14 @@ model ViewerMemory {
   id         String   @id @default(cuid())
   viewerId   String
   viewer     Viewer   @relation(fields: [viewerId], references: [id])
+  arm        String   @default("A") // parallel-timeline memory: each arm has its own continuity
   key        String
   content    String
   stability  Float    @default(0.5) // FSRS-inspired: grows on re-exposure
   lastSeenEp Int      @default(1)
   lastSeenAt DateTime @default(now())
 
-  @@unique([viewerId, key])
+  @@unique([viewerId, arm, key])
 }
 
 model Screening {
@@ -146,6 +147,8 @@ model Experiment {
   rewardB   Float?
   chosen    String? // 'A' | 'B'
   evidence  String? // JSON {n, alpha, beta, rationale}
+
+  @@unique([showId, epNumber, slotIndex])
 }
 
 model CostEntry {

@@ -16,6 +16,8 @@ const TOD_BY_RANK: Record<number, TimeOfDay> = { 0: 'DAWN', 1: 'DAY', 2: 'DUSK',
 const RANK_BY_TOD: Record<TimeOfDay, number> = { DAWN: 0, DAY: 1, DUSK: 2, NIGHT: 3 };
 
 function autofix(beats: Beat[], report: CompileReport): Beat[] {
+  // tracks relocations within this pass so chained C2 fixes anchor correctly
+  const relocatedMap = new Map<number, string>();
   const out = beats.map((b) => ({
     ...b,
     props: [...b.props],
@@ -37,11 +39,21 @@ function autofix(beats: Beat[], report: CompileReport): Beat[] {
         break;
       }
       case 'C2-PRESENCE': {
-        if (b) {
-          // convergent fix: remove the teleporting character from this scene
+        if (!b) break;
+        const mPrevLoc = v.message.match(/teleports from "([^"]+)"/);
+        if (v.severity === 'ERROR' && mPrevLoc) {
+          // Cast-preserving fix: move the scene back to where the cast just was.
+          // If the PREVIOUS beat was relocated earlier in this same pass, anchor
+          // to its NEW location instead of the stale one (chains converge).
+          const relocated = relocatedMap.get(v.beatIndex - 1);
+          b.location = relocated ?? mPrevLoc[1];
+          relocatedMap.set(v.beatIndex, b.location);
+        } else if (v.severity === 'ERROR') {
+          // no location anchor found — drop the teleporting character as a last resort
           const m = v.message.match(/^"([^"]+)" teleports/);
           if (m) b.cast = b.cast.filter((c) => c !== m[1]);
         }
+        // WARN (cross-time-of-day travel) is acceptable — does not block rendering
         break;
       }
       case 'C3-TIMELINE': {
@@ -129,8 +141,13 @@ export async function repairLoop(
   let beats = initial.beats;
   let report = initialReport;
   let loops = 0;
+  let method: RepairResult['method'] = 'FAILED';
 
-  while (report.status === 'FAIL' && loops < 2) {
+  // Deterministic autofix passes (zero AI cost): each pass resolves every
+  // violation reported so far; location-block chains converge hop-by-hop,
+  // so we iterate with a no-progress guard instead of a tiny fixed count.
+  let lastSignature = '';
+  while (report.status === 'FAIL' && loops < 12) {
     loops += 1;
     beats = autofix(beats, report);
     // keep runtime in window
@@ -143,24 +160,35 @@ export async function repairLoop(
       beats: beats.map((b, i) => ({ ...b, index: i, timeOfDay: RANK_BY_TOD[RANK_BY_TOD[b.timeOfDay]] ? b.timeOfDay : 'DAY' })),
       summary: initial.summary,
     };
-    report = compilePlan(normalized.beats, compileCtx);
+    beats = normalized.beats;
+    report = compilePlan(beats, compileCtx);
+    method = 'AUTOFIX';
     if (report.status !== 'FAIL') {
-      return { plan: normalized, report, loops, method: 'AUTOFIX' };
+      return { plan: { beats, summary: initial.summary }, report, loops, method };
     }
+    const signature = report.violations.map((v) => `${v.rule}@${v.beatIndex}:${v.severity}`).join(',');
+    if (signature === lastSignature) {
+      // a full pass produced zero movement — deterministic repair is exhausted
+      break;
+    }
+    lastSignature = signature;
   }
 
-  if (report.status === 'FAIL' && loops < 3) {
+  if (report.status === 'FAIL' && loops < 13) {
     loops += 1;
     const llm = await llmRepair(ctx, { beats, summary: initial.summary }, report.violations);
+    method = 'LLM';
     if (llm) {
       report = compilePlan(llm.beats, compileCtx);
+      // keep plan and report consistent even when the repair still fails
+      beats = llm.beats;
       if (report.status !== 'FAIL') {
-        return { plan: llm, report, loops, method: 'LLM' };
+        return { plan: llm, report, loops, method };
       }
     }
   }
 
-  return { plan: { beats, summary: initial.summary }, report, loops, method: report.status === 'FAIL' ? 'FAILED' : 'AUTOFIX' };
+  return { plan: { beats, summary: initial.summary }, report, loops, method: report.status === 'FAIL' ? 'FAILED' : method };
 }
 
-export { fallbackPlan };
+export { fallbackPlan, autofix };

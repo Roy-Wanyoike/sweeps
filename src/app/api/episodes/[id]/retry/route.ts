@@ -12,11 +12,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (episode.status === 'DONE') {
       return NextResponse.json({ error: 'episode already done' }, { status: 400 });
     }
-    await db.episode.update({
-      where: { id },
-      data: { status: 'DRAFT', compileReport: null, repairLoops: 0 },
-    });
-    await db.beat.deleteMany({ where: { episodeId: id } });
+    if (episode.status === 'COMPILE_FAILED') {
+      // gate rejection: wipe artifacts so the writer produces a fresh plan
+      await db.episode.update({
+        where: { id },
+        data: { status: 'DRAFT', beatPlan: null, summary: null, compileReport: null, repairLoops: 0, spendUsd: 0, retentionScore: null },
+      });
+      await db.beat.deleteMany({ where: { episodeId: id } });
+      await db.screening.deleteMany({ where: { episodeId: id } });
+    }
+    // PIPELINE_ERROR (and any non-terminal state) resumes from persisted artifacts
     enqueue([{ kind: 'episode', episodeId: id }]);
     return NextResponse.json({ ok: true, queued: 1 });
   } catch (err) {

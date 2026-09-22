@@ -23,7 +23,7 @@ export function Header() {
   const { theme, setTheme } = useTheme();
 
   const budgetPct = ledger && ledger.budgetUsd > 0 ? Math.min(100, (ledger.totalUsd / ledger.budgetUsd) * 100) : 0;
-  const activeEpisodes = show?.episodes.filter((e) => !['DONE', 'COMPILE_FAILED', 'DRAFT'].includes(e.status)) ?? [];
+  const activeEpisodes = show?.episodes.filter((e) => !['DONE', 'COMPILE_FAILED', 'DRAFT', 'PIPELINE_ERROR'].includes(e.status)) ?? [];
   const busy = Boolean(show?.runner.running) || activeEpisodes.length > 0;
 
   return (

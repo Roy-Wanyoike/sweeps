@@ -1,21 +1,24 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { jparse, retrievability } from '@/lib/contracts';
-import { ViewerPersona } from '@/lib/contracts';
+import { jparse, retrievability, ViewerPersona } from '@/lib/contracts';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string; viewerId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string; viewerId: string }> }) {
   const { viewerId } = await params;
+  const url = new URL(req.url);
+  const arm = url.searchParams.get('arm') === 'B' ? 'B' : 'A';
   const viewer = await db.viewer.findUnique({
     where: { id: viewerId },
     include: {
-      memories: { orderBy: { lastSeenEp: 'desc' } },
+      memories: { where: { arm }, orderBy: { lastSeenEp: 'desc' } },
       screenings: { include: { episode: { select: { number: true, arm: true } } }, orderBy: { id: 'asc' } },
     },
   });
   if (!viewer) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  const latestEp = viewer.screenings.reduce((a, s) => Math.max(a, s.episode.number), 1);
+  // retrievability horizon = latest screening the viewer attended in THIS arm
+  const armScreenings = viewer.screenings.filter((s) => s.episode.arm === arm);
+  const latestEp = armScreenings.reduce((a, s) => Math.max(a, s.episode.number), 1);
   return NextResponse.json({
     viewer: {
       id: viewer.id,
@@ -30,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       lastSeenEp: m.lastSeenEp,
       retrievability: Number(retrievability(m.stability, Math.max(0, latestEp - m.lastSeenEp)).toFixed(3)),
     })),
-    screenings: viewer.screenings.map((s) => ({
+    screenings: armScreenings.map((s) => ({
       episodeNumber: s.episode.number,
       arm: s.episode.arm,
       keepWatching: s.keepWatching,

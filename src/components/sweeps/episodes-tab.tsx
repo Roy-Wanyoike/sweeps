@@ -34,6 +34,7 @@ const STATUS_STYLES: Record<string, string> = {
   WRITING: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
   COMPILING: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
   COMPILE_FAILED: 'bg-destructive/15 text-destructive',
+  PIPELINE_ERROR: 'bg-orange-500/15 text-orange-700 dark:text-orange-400',
   RENDERING: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
   RENDER_PARTIAL: 'bg-orange-500/15 text-orange-700 dark:text-orange-400',
   SCREENING: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
@@ -47,6 +48,7 @@ function stepIndex(status: string): number {
   const idx = STEPS.indexOf(status as (typeof STEPS)[number]);
   if (status === 'DONE' || status === 'RENDER_PARTIAL') return STEPS.length;
   if (status === 'COMPILE_FAILED') return 1;
+  if (status === 'PIPELINE_ERROR') return 0;
   return idx === -1 ? 0 : idx;
 }
 
@@ -66,7 +68,7 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
   );
   const current = selectedEpisodeId ?? armEpisodes[armEpisodes.length - 1]?.id ?? null;
   const { data: ep } = useEpisode(current);
-  const busy = detail.runner.running || armEpisodes.some((e) => !['DONE', 'COMPILE_FAILED', 'DRAFT'].includes(e.status));
+  const busy = detail.runner.running || armEpisodes.some((e) => !['DONE', 'COMPILE_FAILED', 'DRAFT', 'PIPELINE_ERROR'].includes(e.status));
 
   const runNext = () => {
     runEpisode.mutate(activeArm, {

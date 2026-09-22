@@ -79,11 +79,30 @@ export async function prepareTreatmentDirectives(
     const chosen: 'A' | 'B' = sampleA >= sampleB ? 'A' : 'B';
 
     const winner = chosen === 'A' ? variantA : variantB;
-    await db.experiment.create({
-      data: {
+    // one receipt per (show, episode, slot) — retries update instead of duplicating
+    await db.experiment.upsert({
+      where: { showId_epNumber_slotIndex: { showId: ctx.show.id, epNumber: nextEpNumber, slotIndex: cliff.beat } },
+      create: {
         showId: ctx.show.id,
         epNumber: nextEpNumber,
         slotIndex: cliff.beat,
+        variantA: JSON.stringify(variantA),
+        variantB: JSON.stringify(variantB),
+        rewardA,
+        rewardB,
+        chosen,
+        evidence: JSON.stringify({
+          n,
+          prevCliffDelta: cliff.delta,
+          prevCliffQuote: cliff.quote ?? null,
+          alphaA,
+          betaA,
+          alphaB,
+          betaB,
+          method: 'thompson_sampling',
+        }),
+      },
+      update: {
         variantA: JSON.stringify(variantA),
         variantB: JSON.stringify(variantB),
         rewardA,

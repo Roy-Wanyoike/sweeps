@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Beat, BeatType, CompileReport, ViewerPersona } from '@/lib/contracts';
+import { BeatType, CompileReport, ViewerPersona } from '@/lib/contracts';
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -271,10 +271,10 @@ export function usePersonas(id: string | null) {
   });
 }
 
-export function useViewer(showId: string | null, viewerId: string | null) {
+export function useViewer(showId: string | null, viewerId: string | null, arm: string = 'A') {
   return useQuery({
-    queryKey: ['viewer', showId, viewerId],
-    queryFn: () => j<ViewerDetail>(`/api/shows/${showId}/viewers/${viewerId}`),
+    queryKey: ['viewer', showId, viewerId, arm],
+    queryFn: () => j<ViewerDetail>(`/api/shows/${showId}/viewers/${viewerId}?arm=${arm}`),
     enabled: Boolean(showId && viewerId),
   });
 }

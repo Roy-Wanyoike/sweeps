@@ -66,9 +66,9 @@ export function PlayerDialog({
         </DialogHeader>
         <div className="grid gap-3">
           <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
-            {cur?.stillPath && kb && (              <img
+            {cur?.row.stillPath && kb && (              <img
                 key={current}
-                src={cur.stillPath}
+                src={cur.row.stillPath}
                 alt={`Scene ${current + 1}: ${cur.beat?.title ?? ''}`}
                 className="kb-frame h-full w-full object-cover"
                 style={

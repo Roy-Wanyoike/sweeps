@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { computeMetrics } from '@/services/analytics';
+import { computeMetrics, Metrics } from '@/services/analytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     where: { showId: id, status: 'DONE' },
     orderBy: [{ arm: 'asc' }, { number: 'asc' }],
   });
-  const out = [];
+  const out: Metrics[] = [];
   for (const ep of episodes) {
     const metrics = await computeMetrics(ep.id);
     if (metrics) out.push(metrics);

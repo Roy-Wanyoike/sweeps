@@ -31,7 +31,7 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
   const retentionData = (() => {
     if (episodes.length === 0) return [];
     const maxBeat = Math.max(...episodes.map((m) => m.curve.length));
-    const rows = [];
+    const rows: Record<string, number>[] = [];
     for (let b = 0; b < maxBeat; b++) {
       const row: Record<string, number> = { beat: b };
       for (const m of episodes) {

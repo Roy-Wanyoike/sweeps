@@ -21,7 +21,7 @@ export interface AIProvider {
   chatModel(tier: Tier): string;
   chat(req: ChatRequest): Promise<string | null>;
   /** Returns a public URL path like /generated/<hash>.png, or null. */
-  image(req: { prompt: string; showId: string; episodeId?: string | null }): Promise<string | null>;
+  image(req: { prompt: string }): Promise<string | null>;
   hasVideo(): boolean;
 }
 
@@ -74,7 +74,7 @@ class SandboxProvider implements AIProvider {
     const client = await zai();
     if (!client) return null;
     try {
-      const userContent = req.imageDataUrl
+      const userContent: string | { type: string; text?: string; image_url?: { url: string } }[] = req.imageDataUrl
         ? [
             { type: 'text', text: req.user },
             { type: 'image_url', image_url: { url: req.imageDataUrl } },
@@ -84,7 +84,8 @@ class SandboxProvider implements AIProvider {
         client.chat.completions.create({
           messages: [
             { role: 'system', content: req.system },
-            { role: 'user', content: userContent },
+            // runtime accepts multimodal arrays for VLM calls; SDK types are string-only
+            { role: 'user', content: userContent as string },
           ],
           thinking: { type: 'disabled' },
         }),

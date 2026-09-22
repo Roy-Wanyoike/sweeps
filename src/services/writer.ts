@@ -28,9 +28,9 @@ function extractJson(text: string): unknown {
 
 export function buildUserPrompt(ctx: WriteCtx): string {
   const lines: string[] = [];
-  lines.push(`SERIES: ${ctx.title}`);
-  lines.push(`PREMISE: ${ctx.premise}`);
-  lines.push(`GENRE: ${ctx.genre} | STYLE: ${ctx.visualStyle} | EPISODE: ${ctx.episodeNumber} of ${ctx.episodeCount}`);
+  lines.push(`SERIES: ${ctx.show.title}`);
+  lines.push(`PREMISE: ${ctx.show.premise}`);
+  lines.push(`GENRE: ${ctx.show.genre} | STYLE: ${ctx.show.visualStyle} | EPISODE: ${ctx.episodeNumber} of ${ctx.show.episodeCount}`);
   lines.push(`CHARACTERS:\n${ctx.characters.map((c) => `- ${c.name} (${c.role}): ${c.personality}`).join('\n')}`);
   lines.push(`LOCATIONS:\n${ctx.locations.map((l) => `- ${l.name}: ${l.desc}`).join('\n')}`);
   lines.push(`PROPS:\n${ctx.props.map((p) => `- ${p.name}: ${p.desc}`).join('\n')}`);
@@ -84,7 +84,7 @@ export function fallbackPlan(ctx: WriteCtx): BeatPlan {
     props,
     wardrobe: {},
     loreAssertions: [],
-    visualPrompt: `${title} — ${cast.join(' and ')} at ${location}, ${ctx.visualStyle}, cinematic`,
+    visualPrompt: `${title} — ${cast.join(' and ')} at ${location}, ${ctx.show.visualStyle}, cinematic`,
     dialogue,
     purpose,
     qualitySelfScore: quality,
@@ -216,7 +216,7 @@ export async function proposeVariants(
 ): Promise<Beat[] | null> {
   const provider = getAIProvider();
   const system = `You are an AI showrunner optimizing RETENTION. Two variant beats will be A/B tested on a simulated audience. Respond ONLY JSON: {"variants":[beatA, beatB]} where each beat matches the beat schema (same location/cast, may change title/type/dialogue/visualPrompt/purpose). Make the two variants meaningfully different strategies.`;
-  const user = `Show premise: ${ctx.premise}\nWeak beat (retention dropped ${(cliff.delta * 100).toFixed(1)} pts here):\n${JSON.stringify(beat)}\nViewer quote at the cliff: ${cliff.quote ?? 'n/a'}\nReturn 2 variants as JSON.`;
+  const user = `Show premise: ${ctx.show.premise}\nWeak beat (retention dropped ${(cliff.delta * 100).toFixed(1)} pts here):\n${JSON.stringify(beat)}\nViewer quote at the cliff: ${cliff.quote ?? 'n/a'}\nReturn 2 variants as JSON.`;
   const text = await meteredChat(provider, { showId: ctx.show.id, stage: 'OPTIMIZER', tier: 'BIG', maxTokens: 3000 }, system, user);
   if (!text) return null;
   try {
@@ -241,6 +241,7 @@ export function fallbackVariants(beat: Beat, seed: number): Beat[] {
     purpose: `${beat.purpose} (variant A: leaner, faster tension)`,
     visualPrompt: `${beat.visualPrompt}, tighter framing, harder shadows`,
     durationSec: Math.max(4, beat.durationSec - 2),
+    qualitySelfScore: Math.min(1, beat.qualitySelfScore + 0.03),
   };
   const b: Beat = {
     ...beat,
@@ -253,6 +254,7 @@ export function fallbackVariants(beat: Beat, seed: number): Beat[] {
         ? [...beat.dialogue, { char: beat.cast[0] ?? 'narrator', line: 'You knew this would end here.', emotion: 'cold' }]
         : [{ char: beat.cast[0] ?? 'narrator', line: 'You knew this would end here.', emotion: 'cold' }],
     durationSec: Math.min(20, beat.durationSec + 2),
+    qualitySelfScore: Math.min(1, beat.qualitySelfScore + 0.05),
   };
   void seed;
   return [a, b];
