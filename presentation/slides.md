@@ -88,7 +88,8 @@ Every violation ships a machine-actionable fix the Writer auto-applies — bound
 **Viewer memory (FSRS-inspired):**
 - `stability′ = stability + (1 − stability) · impact`  — impact: CLIFFHANGER 0.9 · TWIST 0.8 · REVEAL 0.6 · HOOK 0.4
 - `R = exp(−Δdays / (0.9 · stability))`
-- Prior CLIFFHANGER with `R > 0.5` → **+0.10** satisfaction on the next episode’s HOOK
+- Prior CLIFFHANGER with `R > 0.3` → **+0.10** satisfaction on the next episode’s HOOK
+  (calibrated to the time constant: `R(Δ=1) ≈ 0.31` fires, `R(Δ=2) ≈ 0.11` doesn’t)
 - **→ memory is causal, not decorative.**
 
 **Watch simulator (seeded, per beat):**
@@ -123,16 +124,16 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 
 ## 08 · Dual-arm proof — one show, two fates
 
-> **“Treatment retained +4.5 pts at 6% lower cost per retained viewer.”**
+> **“Treatment retained +4.0 pts at 6% lower cost per retained viewer.”**
 > `MEASURED — SEED 92067772 · PANEL 200`
 
 - **Arm A — writer-only control** (never sees the audience) vs **Arm B — full loop** (cliffs + viewer quotes + Thompson-sampled variants fed back).
 - Same seed · same show bible · same 200-viewer panel · 6 episodes per arm.
-- Measured KM survival: Arm B stays above Arm A at every post-premiere episode (B 69.5% vs A 65.0% at EP3).
+- Measured KM survival: Arm B stays above Arm A at every post-premiere episode (B 70.5% vs A 66.5% at EP3).
 
 | Metric | Arm A | Arm B |
 |---|---|---|
-| Retention EP1→EP3 | −6.5 pts | **−2.0 pts** |
+| Retention EP1→EP3 | −5.0 pts | **−1.0 pts** |
 | Cost / retained viewer | $0.0016 | **$0.0015** |
 | Cliffs / episode (avg) | 7.0 | **5.7** (EP3: 8 vs **4**) |
 | Panel | 200 | 200 |
@@ -164,12 +165,13 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 2. **Zod-validated outputs** — LLM → Zod ✓ → commit; Zod ✗ → retry ×1; still ✗ → deterministic fallback template. The pipeline never dead-ends on a bad generation.
 3. **Crash-safe, resumable pipeline** — `WRITING → COMPILING ⟲≤3 → RENDERING → SCREENING → ANALYZING → DONE`; every step persists output + JobLog before advancing; resumes from the last good state.
 4. **Honest statuses** — `COMPILE_FAILED` = creative failure (report rendered, tokens saved shown — a feature, not a bug) vs `PIPELINE_ERROR` = infra failure (retried, surfaced, never masquerading as creative).
+5. **Signed determinism receipt** — same-seed replay byte-compares all 1,200 screening rows in ~100 ms (Ep1 A/B share one hash — paired premiere, provable); the receipt downloads as a portable JSON artifact with an HMAC-SHA256 attestation recomputable from the seed. Self-verifying, not secret.
 
 ---
 
 ## 11 · Stack & deployment — one codebase, two clouds
 
-**Stack:** Next.js 16 App Router · TypeScript strict — single 5-tab dashboard, 13 REST API routes · Prisma + SQLite (11 models) · shadcn/ui + Tailwind 4 + Recharts · pure-TS seeded engines (mulberry32, FSRS memory, Kaplan–Meier, Thompson).
+**Stack:** Next.js 16 App Router · TypeScript strict — single 6-tab dashboard (Episodes · **Arc** · Studio · Audience · Analytics · Experiment), 22 REST endpoints · Prisma + SQLite (11 models) · shadcn/ui + Tailwind 4 + Recharts · pure-TS seeded engines (mulberry32, FSRS memory, Kaplan–Meier, Thompson).
 
 **Provider parity** — the only line that changes: `AI_PROVIDER=sandbox|qwen`
 
@@ -183,7 +185,7 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 
 ---
 
-## 12 · Demo flow — three minutes, five beats
+## 12 · Demo flow — three minutes, six beats
 
 | Time | Beat | What the judge sees |
 |---|---|---|
@@ -191,7 +193,8 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 | 0:20 | **SETUP** | One-line premise → show bible, 12 archetypes and the 200-viewer panel materialize. |
 | 0:50 | **REVEAL** | The Gate: bad fixture rejected — 2 ERRORs + 1 WARN, $0.00 spent; repair loop counts down live. |
 | 1:30 | **TWIST** | 200 personas screen Ep1: retention curve draws, comment wall fills, memory inspector decays. |
-| 2:10 | **CLIFFHANGER** | Thompson picks the variant; dual-arm table lands; close on “measure attention, not output.” |
+| 2:10 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying below the recall bar, hook payoff measured — then the determinism receipt, signed. |
+| 2:40 | **CLIFFHANGER** | Thompson picks the variant; dual-arm table lands; close on “measure attention, not output.” |
 
 Single screen recording, one take — ends on the live dashboard, DUAL mode running.
 

@@ -54,8 +54,9 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
 
 ## Power features
 
-- **Keyboard-driven studio.** `1–5` switch tabs, `A`/`B` select arm, `E` runs the next episode,
-  `Shift+D` launches the full dual-arm demo, `T` toggles theme, `?` opens the shortcut cheat-sheet.
+- **Keyboard-driven studio.** `1–6` switch tabs (Episodes · Arc · Studio · Audience · Analytics ·
+  Experiment), `A`/`B` select arm, `E` runs the next episode, `Shift+D` launches the full dual-arm
+  demo, `T` toggles theme, `?` opens the shortcut cheat-sheet.
 - **Portable episode artifacts.** Every finished episode exports as a **Markdown script** (beat plan,
   full dialogue, compile report, per-beat engagement) or **JSON** payload —
   `GET /api/episodes/:id/export?format=md|json`, or the Export button on the Episodes tab.
@@ -88,6 +89,21 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
   The receipt shows per-episode SHA-256 hashes, rows checked, replay time and a copyable show
   fingerprint. Ep1 (A) and Ep1 (B) display the *same hash* — the paired premiere, provable. If a
   re-compile ever drifts the curves, the receipt turns red and says so honestly.
+- **Signed receipt artifact.** The determinism receipt downloads as a portable JSON artifact
+  (`GET /api/shows/:id/verify?download=1`) with an HMAC-SHA256 attestation over its canonical form.
+  The key is derived from the show's own seed, so anyone can recompute the signature — the artifact
+  is self-verifying, not secret. Drop it in a repo, a paper, a pitch deck.
+- **Season arc planner (Arc tab).** The writers-room view across episodes: a tension chart overlaying
+  writer-intent beat tension (dashed steps) with measured panel engagement (solid, per arm); beat
+  rhythm "DNA" strips comparing arm structures side by side; measured **cliffhanger → hook payoff**
+  (share of viewers whose memory recalls the cliffhanger at the next episode's first beat); **open
+  plot loops** decayed by the same FSRS model the audience uses (threads below 25% retrievability
+  are shown struck-through — forgotten); and a **cast presence** matrix that exposes continuity gaps
+  as holes. Zero new AI spend — recomputed from stored artifacts.
+- **Calibrated cliffhanger recall.** The returning-hook bonus threshold is matched to the FSRS time
+  constant (R(Δ=1) ≈ 0.31 with stability 0.95 — an active-recall bar of 0.3 means "recalled exactly
+  one episode later"). The season-arc view exposed the original 0.5 bar as mathematically
+  unreachable; the fix is documented in `simulateWatch` and replay-verified byte-for-byte.
 - **Per-viewer journey timeline.** Select any viewer in the Memory inspector to see their episode-by-
   episode satisfaction trace S(t) as an SVG sparkline with their personal churn threshold (dashed
   amber), a drop marker where they bailed, amber pips where a memory was recalled, and their in-voice

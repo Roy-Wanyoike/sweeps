@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type Arm = 'A' | 'B';
-export type TabKey = 'studio' | 'episodes' | 'audience' | 'analytics' | 'experiment';
+export type TabKey = 'studio' | 'episodes' | 'arc' | 'audience' | 'analytics' | 'experiment';
 
 interface SweepsState {
   activeShowId: string | null;

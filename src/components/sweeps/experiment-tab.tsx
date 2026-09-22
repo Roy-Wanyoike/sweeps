@@ -11,6 +11,7 @@ import {
   ArrowUpRight,
   BadgeCheck,
   Copy,
+  Download,
   FlaskConical,
   Fingerprint,
   Minus,
@@ -66,6 +67,16 @@ function DeterminismCard({ showId }: { showId: string }) {
           </CardDescription>
         </div>
         <div data-slot="card-action">
+          {receipt && verified.length > 0 && (
+            <a
+              href={`/api/shows/${showId}/verify?download=1`}
+              download
+              className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-input bg-transparent px-3 text-xs font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50"
+              title="Download the portable HMAC-signed verification artifact"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden /> Receipt
+            </a>
+          )}
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching} title="Re-run the verification">
             <RefreshCw className={`mr-1 h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden />
             {isFetching ? 'Verifying…' : 'Re-verify'}

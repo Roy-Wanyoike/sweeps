@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { db } from '@/lib/db';
 import { Beat, jparse, ViewerPersona } from '@/lib/contracts';
 import { simulateWatch, IMPACT, KEY_TYPES } from './audience';
@@ -53,6 +53,50 @@ export interface VerifyReceipt {
 }
 
 const EPS = 1e-9;
+
+/* ------------------------- portable signed artifact ------------------------- */
+
+/** Deterministic JSON canonicalization: sorted keys, undefined dropped, arrays kept. */
+export function canonicalJson(v: unknown): string {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v ?? null);
+  if (Array.isArray(v)) return `[${v.map((x) => canonicalJson(x)).join(',')}]`;
+  const entries = Object.entries(v as Record<string, unknown>)
+    .filter(([, val]) => val !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, val]) => `${JSON.stringify(k)}:${canonicalJson(val)}`).join(',')}}`;
+}
+
+/**
+ * Attestation signature over the receipt body. The HMAC key is derived from the
+ * show's own identity (id + master seed) — anyone holding the seed can recompute
+ * it, which is the point: the artifact is self-verifying, not secret.
+ */
+export function signReceipt(receipt: VerifyReceipt, seed: number): string {
+  const key = `sweeps-attest:${receipt.showId}:${seed}`;
+  const { signature: _ignored, ...body } = receipt as VerifyReceipt & { signature?: string };
+  void _ignored;
+  return createHmac('sha256', key).update(canonicalJson(body)).digest('hex');
+}
+
+/** Build the downloadable artifact: receipt + signature + verification recipe. */
+export function receiptArtifact(receipt: VerifyReceipt): Record<string, unknown> {
+  const showSeed = receipt.seed;
+  const signature = signReceipt(receipt, showSeed);
+  return {
+    artifact: 'sweeps.determinism-receipt',
+    version: 1,
+    generatedAt: receipt.verifiedAt,
+    receipt,
+    attestation: {
+      algorithm: 'HMAC-SHA256',
+      covers: 'canonical JSON of `receipt` (sorted keys, UTF-8)',
+      keyDerivation: 'HMAC key = `sweeps-attest:<showId>:<masterSeed>` — recomputable from the seed',
+      signature,
+      verifyRecipe:
+        'recompute = re-run the same simulation with the same seed and beat plans; every hash and the fingerprint must reproduce byte-for-byte',
+    },
+  };
+}
 
 function rowHashString(viewerId: string, events: string, keepWatching: boolean, dropAtBeat: number | null, satisfaction: number): string {
   return `${viewerId}:${events}:${keepWatching ? 1 : 0}:${dropAtBeat === null ? 'null' : dropAtBeat}:${satisfaction.toFixed(6)}`;

@@ -242,6 +242,44 @@ export interface ReactionsData {
   }[];
 }
 
+export interface ArcBeat {
+  index: number;
+  type: string;
+  title: string;
+  tension: number;
+  engagement: number | null;
+  isKey: boolean;
+}
+
+export interface ArcThread {
+  key: string;
+  title: string;
+  plantedEp: number;
+  type: string;
+  strength: number;
+  alive: boolean;
+}
+
+export interface ArcEpisode {
+  episodeId: string;
+  number: number;
+  status: string;
+  retention: number | null;
+  globalBeatStart: number;
+  beats: ArcBeat[];
+  cliffhanger: { title: string; hookPayoffRate: number | null } | null;
+  threadsPlanted: { title: string; type: string }[];
+  openLoops: { alive: number; total: number; threads: ArcThread[] };
+  cast: { name: string; beats: number }[];
+}
+
+export interface ArcData {
+  showId: string;
+  title: string;
+  arms: { arm: string; episodes: ArcEpisode[] }[];
+  cast: string[];
+}
+
 /* ---------------------------------- queries --------------------------------- */
 
 export function useHealth() {
@@ -337,6 +375,16 @@ export function useVerifyDeterminism(showId: string | null, enabled = true) {
     enabled: Boolean(showId) && enabled,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+  });
+}
+
+/** Season arc planner — cross-episode tension, threads, hook payoffs, cast presence. */
+export function useShowArc(showId: string | null) {
+  return useQuery({
+    queryKey: ['arc', showId],
+    queryFn: () => j<ArcData>(`/api/shows/${showId}/arc`),
+    enabled: Boolean(showId),
+    staleTime: 30_000,
   });
 }
 

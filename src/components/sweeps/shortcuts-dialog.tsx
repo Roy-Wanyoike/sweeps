@@ -9,10 +9,11 @@ const GROUPS: { title: string; keys: { combo: string; action: string }[] }[] = [
     title: 'Navigate',
     keys: [
       { combo: '1', action: 'Episodes tab' },
-      { combo: '2', action: 'Studio tab' },
-      { combo: '3', action: 'Audience tab' },
-      { combo: '4', action: 'Analytics tab' },
-      { combo: '5', action: 'Experiment tab' },
+      { combo: '2', action: 'Arc tab (season planner)' },
+      { combo: '3', action: 'Studio tab' },
+      { combo: '4', action: 'Audience tab' },
+      { combo: '5', action: 'Analytics tab' },
+      { combo: '6', action: 'Experiment tab' },
     ],
   },
   {

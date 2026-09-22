@@ -138,7 +138,11 @@ export function simulateWatch(
       tropeStrength.set(t, Math.max(tropeStrength.get(t) ?? 0, r));
     }
   }
-  // returning-hook bonus: cliffhanger memory from previous episode
+  // returning-hook bonus: cliffhanger memory from previous episode.
+  // Threshold calibrated to the FSRS time constant: with cliffhanger stability 0.95
+  // (capped at 1.0 on write), R(Δ=1) ≈ 0.31-0.33 and R(Δ=2) ≈ 0.11 — so an active-recall
+  // bar of 0.3 means "recalled exactly one episode later", while 0.5 was mathematically
+  // unreachable (a dead code path the season-arc view exposed).
   let cliffR = 0;
   const cliffMem = memories.find((m) => m.key === 'cliffhanger:last');
   if (cliffMem && cliffMem.lastSeenEp === epNumber - 1) {
@@ -154,7 +158,7 @@ export function simulateWatch(
   for (const beat of beats) {
     const recalled: string[] = [];
     let bonus = 0;
-    if (beat.index === 0 && cliffR > 0.5) {
+    if (beat.index === 0 && cliffR > 0.3) {
       bonus += 0.1;
       recalled.push('cliffhanger:last');
     }

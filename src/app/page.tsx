@@ -6,6 +6,7 @@ import { Header } from '@/components/sweeps/header';
 import { CreateShowDialog } from '@/components/sweeps/create-show-dialog';
 import { StudioTab } from '@/components/sweeps/studio-tab';
 import { EpisodesTab } from '@/components/sweeps/episodes-tab';
+import { ArcTab } from '@/components/sweeps/arc-tab';
 import { AudienceTab } from '@/components/sweeps/audience-tab';
 import { AnalyticsTab } from '@/components/sweeps/analytics-tab';
 import { ExperimentTab } from '@/components/sweeps/experiment-tab';
@@ -28,6 +29,7 @@ import {
   Keyboard,
   MessageSquare,
   Sparkles,
+  Waypoints,
 } from 'lucide-react';
 
 const DEMO_PREMISE =
@@ -35,6 +37,7 @@ const DEMO_PREMISE =
 
 const TAB_META: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: 'episodes', label: 'Episodes', icon: Film },
+  { key: 'arc', label: 'Arc', icon: Waypoints },
   { key: 'studio', label: 'Studio', icon: Clapperboard },
   { key: 'audience', label: 'Audience', icon: MessageSquare },
   { key: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -64,7 +67,7 @@ function Landing() {
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-2" aria-label="Key product numbers">
-        {['8 rules · 0 tokens', '200 persona viewers', 'FSRS memory decay', '+4.5 pts measured lift'].map((chip) => (
+        {['8 rules · 0 tokens', '200 persona viewers', 'FSRS memory decay', '+4.0 pts measured lift'].map((chip) => (
           <Badge key={chip} variant="secondary" className="px-3 py-1 text-xs">
             {chip}
           </Badge>
@@ -136,7 +139,7 @@ function Dashboard({ onShortcuts }: { onShortcuts: () => void }) {
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key;
-      const tabByIndex: Record<string, TabKey> = { '1': 'episodes', '2': 'studio', '3': 'audience', '4': 'analytics', '5': 'experiment' };
+      const tabByIndex: Record<string, TabKey> = { '1': 'episodes', '2': 'arc', '3': 'studio', '4': 'audience', '5': 'analytics', '6': 'experiment' };
       if (tabByIndex[k]) {
         setTab(tabByIndex[k]);
         return;
@@ -208,6 +211,9 @@ function Dashboard({ onShortcuts }: { onShortcuts: () => void }) {
       </TabsList>
       <TabsContent value="episodes" className="fade-in">
         <EpisodesTab detail={detail} />
+      </TabsContent>
+      <TabsContent value="arc" className="fade-in">
+        <ArcTab showId={detail.show.id} mode={detail.show.mode} />
       </TabsContent>
       <TabsContent value="studio" className="fade-in">
         <StudioTab detail={detail} />

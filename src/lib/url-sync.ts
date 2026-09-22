@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useSweeps, TabKey } from '@/lib/store';
 
-const TABS: TabKey[] = ['episodes', 'studio', 'audience', 'analytics', 'experiment'];
+const TABS: TabKey[] = ['episodes', 'arc', 'studio', 'audience', 'analytics', 'experiment'];
 
 /**
  * Two-way sync between the sweeps zustand store and the URL query string
