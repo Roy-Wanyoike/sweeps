@@ -301,8 +301,18 @@ export function ExperimentTab({ showId }: { showId: string }) {
                 </div>
               </div>
               {verdict.lift !== 0 && (
-                <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 p-2.5 text-sm text-emerald-700 dark:text-emerald-400">
-                  <ArrowUpRight className="h-4 w-4" aria-hidden />
+                <div
+                  className={`flex items-center gap-2 rounded-lg p-2.5 text-sm ${
+                    verdict.lift > 0
+                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                  }`}
+                >
+                  {verdict.lift > 0 ? (
+                    <ArrowUpRight className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <ArrowDownRight className="h-4 w-4" aria-hidden />
+                  )}
                   {verdict.lift > 0
                     ? 'The audience loop is working: the optimized arm retains more viewers.'
                     : 'The loop under-performed the control this run — inspect the cliffs and experiments below.'}

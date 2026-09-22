@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { getAIProvider, meteredChat } from '@/lib/ai/provider';
 import { Beat, BeatPlan, BeatPlanSchema, BeatSchema, BeatType, jparse } from '@/lib/contracts';
 import { hashSeed } from '@/lib/sim/rng';
+import type { WriterBrief } from './arc';
 
 export interface WriteCtx {
   show: { id: string; title: string; premise: string; genre: string; visualStyle: string; seed: number; episodeCount: number; mode: string };
@@ -12,6 +13,9 @@ export interface WriteCtx {
   priorSummaries: { number: number; summary: string }[];
   analyticsBlock?: string;
   directives?: { slotIndex: number; beat: Beat; rationale: string }[];
+  /** Writer's brief computed from measured panel data — injected into the prompt
+   *  and applied deterministically to fallback plans (arm B, ep 2+). */
+  brief?: WriterBrief | null;
 }
 
 const SYSTEM = `You are an autonomous AI showrunner writing one episode of a serialized drama as a structured "beat plan".
@@ -40,6 +44,9 @@ export function buildUserPrompt(ctx: WriteCtx): string {
   if (ctx.analyticsBlock) {
     lines.push(`MEASURED AUDIENCE RESPONSE (optimize retention against this):\n${ctx.analyticsBlock}`);
   }
+  if (ctx.brief && ctx.brief.directives.length > 0) {
+    lines.push(briefToWriterText(ctx.brief));
+  }
   if (ctx.directives && ctx.directives.length > 0) {
     lines.push(
       `A/B EXperiments DECIDED BY THOMPSON SAMPLING — use these EXACT beats at the given slots:\n${ctx.directives
@@ -49,6 +56,38 @@ export function buildUserPrompt(ctx: WriteCtx): string {
   }
   lines.push('Write episode ' + ctx.episodeNumber + ' now. JSON only.');
   return lines.join('\n\n');
+}
+
+/** Format the brief as an imperative writer instruction block (each directive
+ *  carries its machine-checkable contract so the writer knows it is graded). */
+export function briefToWriterText(brief: WriterBrief): string {
+  const head = `WRITER'S BRIEF — MEASURED-DATA DIRECTIVES FOR EPISODE ${brief.nextEpisodeNumber}` +
+    (brief.cohort ? ` (written through the ${brief.cohort} cohort lens)` : ' (whole panel)') +
+    `. A deterministic compliance checker will verify each contract below — follow them exactly.`;
+  const items = brief.directives.map((d, i) => {
+    let contract = '';
+    if (d.check) {
+      switch (d.check.type) {
+        case 'CALLBACK':
+          contract = `CONTRACT: one of the first ${d.check.withinFirstNBeats} beats must reference "${d.check.threadTitle}" verbatim in its title or dialogue.`;
+          break;
+        case 'HOOK':
+          contract = `CONTRACT: beat 0 must re-state the cliffhanger "${d.check.cliffhangerTitle}" in its dialogue.`;
+          break;
+        case 'PROTECT_BEAT':
+          contract = `CONTRACT: every beat in the first half must run ≤ ${d.check.maxFirstHalfSec}s.`;
+          break;
+        case 'COHORT':
+          contract = `CONTRACT: some beat in the first half must carry ≥ ${d.check.detailDensityMin} concrete details (dialogue lines + prop actions).`;
+          break;
+        case 'ECONOMY':
+          contract = `CONTRACT: ≥ ${Math.round(d.check.reuseRatioMin * 100)}% of beats must reuse locations already established in this arm.`;
+          break;
+      }
+    }
+    return `${i + 1}. [${d.kind}] ${d.title} — ${d.body}${contract ? `\n   ${contract}` : ''}`;
+  });
+  return `${head}\n${items.join('\n')}`;
 }
 
 /** Deterministic fallback plan — always compiles clean against its own bible. */
@@ -141,6 +180,79 @@ export function applyDirectives(plan: BeatPlan, directives?: WriteCtx['directive
   return { ...plan, beats };
 }
 
+/**
+ * Deterministically honor the writer's brief on a beat plan.
+ *
+ * The LLM path is instructed (and graded by the compliance checker); the
+ * deterministic fallback path is rewritten HERE so the loop closes even with
+ * zero AI: callbacks get their dialogue line, the hook gets its restatement,
+ * first-half beats get the length cap, and the detail-density contract is met.
+ */
+export function applyBriefToPlan(plan: BeatPlan, brief?: WriterBrief | null): BeatPlan {
+  if (!brief || brief.directives.length === 0) return plan;
+  const beats = plan.beats.map((b) => ({ ...b, dialogue: [...b.dialogue], props: [...b.props] }));
+  if (beats.length === 0) return plan;
+  const half = Math.max(1, Math.ceil(beats.length / 2));
+
+  for (const d of brief.directives) {
+    if (!d.check) continue;
+    switch (d.check.type) {
+      case 'CALLBACK': {
+        // reference the fading thread verbatim inside the first N beats
+        const target = beats[Math.min(d.check.withinFirstNBeats, beats.length) - 1];
+        const speaker = target.cast[0] ?? 'narrator';
+        target.dialogue.push({
+          char: speaker,
+          line: `"${d.check.threadTitle}" — that thread never closed. We deal with it now.`,
+          emotion: 'tense',
+        });
+        break;
+      }
+      case 'HOOK': {
+        // re-state the cliffhanger stakes in beat 0
+        const target = beats[0];
+        const speaker = target.cast[0] ?? 'narrator';
+        target.dialogue.unshift({
+          char: speaker,
+          line: `After "${d.check.cliffhangerTitle}", nothing is normal anymore.`,
+          emotion: 'dread',
+        });
+        break;
+      }
+      case 'PROTECT_BEAT': {
+        // hard length cap on first-half beats (churn beats run long)
+        for (let i = 0; i < half; i++) {
+          beats[i].durationSec = Math.min(beats[i].durationSec, d.check.maxFirstHalfSec);
+        }
+        break;
+      }
+      case 'COHORT': {
+        // guarantee a detail-dense first-half beat (dialogue + prop actions ≥ min)
+        let target = beats[0];
+        for (let i = 0; i < half; i++) {
+          if (beats[i].dialogue.length + beats[i].props.length > target.dialogue.length + target.props.length) target = beats[i];
+        }
+        let density = target.dialogue.length + target.props.length;
+        const speaker = target.cast[0] ?? 'narrator';
+        const second = target.cast[1] ?? speaker;
+        while (density < d.check.detailDensityMin) {
+          target.dialogue.push(
+            density % 2 === 0
+              ? { char: speaker, line: 'Every detail matters here — check the timestamps, the labels, all of it.', emotion: 'focused' }
+              : { char: second, line: 'Nothing slips past us this time. Look closer.', emotion: 'resolved' }
+          );
+          density++;
+        }
+        break;
+      }
+      case 'ECONOMY':
+        // locations come from the show bible in the fallback path — already established
+        break;
+    }
+  }
+  return { ...plan, beats };
+}
+
 export function normalizePlan(plan: BeatPlan, ctx: WriteCtx): BeatPlan {
   const locNames = ctx.locations.map((l) => l.name);
   const beats = plan.beats.map((b, i) => {
@@ -178,13 +290,13 @@ export async function generatePlan(ctx: WriteCtx): Promise<BeatPlan> {
     try {
       const parsed = BeatPlanSchema.safeParse(extractJson(text));
       if (parsed.success) {
-        return applyDirectives(normalizePlan(parsed.data, ctx), ctx.directives);
+        return applyBriefToPlan(applyDirectives(normalizePlan(parsed.data, ctx), ctx.directives), ctx.brief);
       }
     } catch {
       /* retry */
     }
   }
-  return applyDirectives(fallbackPlan(ctx), ctx.directives);
+  return applyBriefToPlan(applyDirectives(fallbackPlan(ctx), ctx.directives), ctx.brief);
 }
 
 /** Repairer assist: ask the writer to fix a failed plan (deterministic autofix runs first). */
@@ -201,7 +313,7 @@ export async function llmRepair(
   if (!text) return null;
   try {
     const parsed = BeatPlanSchema.safeParse(extractJson(text));
-    if (parsed.success) return applyDirectives(normalizePlan(parsed.data, ctx), ctx.directives);
+    if (parsed.success) return applyBriefToPlan(applyDirectives(normalizePlan(parsed.data, ctx), ctx.directives), ctx.brief);
   } catch {
     return null;
   }

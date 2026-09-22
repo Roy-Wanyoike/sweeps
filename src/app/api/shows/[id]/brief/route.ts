@@ -3,12 +3,16 @@ import { computeWriterBrief } from '@/services/arc';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/shows/[id]/brief?arm=A|B — the Arc→Writer directive list for the next episode. */
+/** GET /api/shows/[id]/brief?arm=A|B&cohort=Archetype — the Arc→Writer directive
+ *  list for the next episode. Pass a cohort archetype to write the brief through
+ *  that cohort's lens (their own churn curve, their own keep-rate contract). */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const arm = new URL(req.url).searchParams.get('arm') ?? undefined;
-    const brief = await computeWriterBrief(id, arm ?? undefined);
+    const url = new URL(req.url);
+    const arm = url.searchParams.get('arm') ?? undefined;
+    const cohort = url.searchParams.get('cohort') ?? undefined;
+    const brief = await computeWriterBrief(id, arm ?? undefined, cohort ?? undefined);
     if (!brief) return NextResponse.json({ error: 'not enough screened episodes for a brief' }, { status: 404 });
     return NextResponse.json({ brief });
   } catch (err) {

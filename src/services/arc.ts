@@ -254,7 +254,20 @@ export interface BriefDirective {
   body: string;
   evidence: string;
   severity: 'high' | 'medium' | 'low';
+  /**
+   * Machine-checkable contract for this directive. The compliance verifier
+   * (brief-compliance.ts) uses it to PROVE the writer honored the brief —
+   * the deterministic half of the loop closure.
+   */
+  check?: BriefCheck;
 }
+
+export type BriefCheck =
+  | { type: 'CALLBACK'; threadTitle: string; withinFirstNBeats: number }
+  | { type: 'HOOK'; cliffhangerTitle: string }
+  | { type: 'PROTECT_BEAT'; maxFirstHalfSec: number }
+  | { type: 'COHORT'; detailDensityMin: number }
+  | { type: 'ECONOMY'; reuseRatioMin: number };
 
 export interface WriterBrief {
   showId: string;
@@ -263,6 +276,10 @@ export interface WriterBrief {
   nextEpisodeNumber: number;
   basedOn: { episodes: number[]; viewers: number };
   directives: BriefDirective[];
+  /** cohort lens this brief was written through (null = whole panel) */
+  cohort: string | null;
+  /** archetypes offered as lens chips (top-2 keepers + bottom-2 churners) */
+  lenses: { archetype: string; keepRate: number; n: number }[];
   /** sha256 over the canonical directives — same measurements, same brief */
   fingerprint: string;
   generatedAt: string;
@@ -271,7 +288,7 @@ export interface WriterBrief {
 const SCREENED = ['DONE', 'RENDER_PARTIAL', 'ANALYZING'];
 const SEVERITY_ORDER: Record<BriefDirective['severity'], number> = { high: 0, medium: 1, low: 2 };
 
-export async function computeWriterBrief(showId: string, arm?: string): Promise<WriterBrief | null> {
+export async function computeWriterBrief(showId: string, arm?: string, cohort?: string): Promise<WriterBrief | null> {
   const show = await db.show.findUnique({ where: { id: showId } });
   if (!show) return null;
 
@@ -290,24 +307,45 @@ export async function computeWriterBrief(showId: string, arm?: string): Promise<
 
   const directives: BriefDirective[] = [];
 
+  // ---- 0. cohort lens — resolve the requested archetype against the last episode's cohorts
+  const metricsEarly = await computeMetrics(last.id);
+  const cohortLens =
+    cohort && metricsEarly ? metricsEarly.cohorts.find((c) => c.archetype === cohort) ?? null : null;
+
   // ---- 1. PROTECT_BEAT — the largest single-beat churn cliff in the latest episode
+  //        (through the cohort lens: that cohort's own curve, not the panel mean)
   const lastBeats = parseBeats(last.beatPlan);
   const lastScreenings = await db.screening.findMany({ where: { episodeId: last.id }, select: { events: true } });
   const engagement = engagementByBeat(lastScreenings);
   let worstBeat: { index: number; s: number } | null = null;
-  for (const b of lastBeats) {
-    const s = engagement.get(b.index);
-    if (s === undefined) continue;
-    if (!worstBeat || s < worstBeat.s) worstBeat = { index: b.index, s };
+  if (cohortLens) {
+    for (const pt of cohortLens.curve) {
+      if (!worstBeat || pt.retention < worstBeat.s) worstBeat = { index: pt.beat, s: pt.retention };
+    }
+  } else {
+    for (const b of lastBeats) {
+      const s = engagement.get(b.index);
+      if (s === undefined) continue;
+      if (!worstBeat || s < worstBeat.s) worstBeat = { index: b.index, s };
+    }
   }
   if (worstBeat && worstBeat.s < 0.55) {
     const beatMeta = lastBeats.find((b) => b.index === worstBeat!.index);
+    // machine contract: no first-half beat of the new episode may run longer than
+    // the churn beat's own length (its ~15% trim, applied as a hard cap)
+    const oldDur = beatMeta ? (beatMeta as { durationSec?: number }).durationSec ?? 12 : 12;
+    const maxFirstHalfSec = Math.max(8, Math.round(oldDur * 0.85));
     directives.push({
       kind: 'PROTECT_BEAT',
       title: `Rework beat ${worstBeat.index} — "${beatMeta?.title ?? 'untitled'}"`,
-      body: `It scored the lowest measured engagement of the episode (S = ${worstBeat.s.toFixed(2)} on the 0-1 panel scale). Cut its length ~15% and land the conflict one beat earlier — the panel decides to stay or leave in the two beats after this one.`,
-      evidence: `lowest engagement S=${worstBeat.s.toFixed(2)} · Ep${last.number}`,
+      body: cohortLens
+        ? `Through the ${cohortLens.archetype} lens: this is where their retention bottoms out (${(worstBeat.s * 100).toFixed(0)}% still watching). Keep every first-half beat ≤ ${maxFirstHalfSec}s — long static beats are where this cohort leaves.`
+        : `It scored the lowest measured engagement of the episode (S = ${worstBeat.s.toFixed(2)} on the 0-1 panel scale). Cut its length ~15% and land the conflict one beat earlier — the panel decides to stay or leave in the two beats after this one.`,
+      evidence: cohortLens
+        ? `${cohortLens.archetype} retention ${(worstBeat.s * 100).toFixed(0)}% at beat ${worstBeat.index} · Ep${last.number}`
+        : `lowest engagement S=${worstBeat.s.toFixed(2)} · Ep${last.number}`,
       severity: worstBeat.s < 0.45 ? 'high' : 'medium',
+      check: { type: 'PROTECT_BEAT', maxFirstHalfSec },
     });
   }
 
@@ -334,6 +372,7 @@ export async function computeWriterBrief(showId: string, arm?: string): Promise<
       body: `Planted in Ep${atRisk.plantedEp} (${atRisk.type.toLowerCase()}), its memory trace decays to ${(atRisk.strength * 100).toFixed(0)}% by Ep${nextNumber} — still above the 25% recall threshold, but fading. Reference it explicitly within the first two beats to re-consolidate the thread before it is lost.`,
       evidence: `FSRS retrievability ${(atRisk.strength * 100).toFixed(0)}% at Ep${nextNumber} open`,
       severity: atRisk.strength < 0.32 ? 'high' : 'medium',
+      check: { type: 'CALLBACK', threadTitle: atRisk.title, withinFirstNBeats: 2 },
     });
   } else {
     directives.push({
@@ -361,6 +400,7 @@ export async function computeWriterBrief(showId: string, arm?: string): Promise<
           body: `Only ${(rate * 100).toFixed(0)}% of the panel recalled it when Ep${next.number} opened. Recall is loyalty-coupled (viewers with loyalty > 0.64 encode it strongly; everyone else holds a fading trace) — so re-state the stakes in Ep${next.number}'s first beat as a one-line callback, not a cold open.`,
           evidence: `hook payoff ${(rate * 100).toFixed(0)}% at Ep${next.number} beat 0`,
           severity: rate < 0.35 ? 'high' : 'medium',
+          check: { type: 'HOOK', cliffhangerTitle: beats.find((b) => b.type === 'CLIFFHANGER')?.title ?? '' },
         });
       }
       break; // only the most recent measurable hand-off
@@ -368,27 +408,49 @@ export async function computeWriterBrief(showId: string, arm?: string): Promise<
   }
 
   // ---- 4. COHORT — the archetype churning hardest in the latest episode
-  const metrics = await computeMetrics(last.id);
+  //        (with a cohort lens active this becomes the lens directive itself)
+  const metrics = metricsEarly;
   if (metrics && metrics.cohorts.length > 0) {
-    const weakest = [...metrics.cohorts].sort((a, b) => a.keepRate - b.keepRate)[0];
-    const gap = weakest.keepRate - metrics.overall;
-    if (gap < -0.05) {
-      // where does their churn diverge from the panel?
+    if (cohortLens) {
+      const panelAt = metrics.curve;
       let divergeBeat: { beat: number; type: string } | null = null;
-      for (const c of weakest.curve) {
-        const panelAt = metrics.curve.find((x) => x.beat === c.beat);
-        if (panelAt && panelAt.retention - c.retention > 0.1) {
-          divergeBeat = { beat: c.beat, type: panelAt.type };
+      for (const c of cohortLens.curve) {
+        const pAt = panelAt.find((x) => x.beat === c.beat);
+        if (pAt && pAt.retention - c.retention > 0.1) {
+          divergeBeat = { beat: c.beat, type: pAt.type };
           break;
         }
       }
       directives.push({
         kind: 'COHORT',
-        title: `Write for the ${weakest.archetype}s`,
-        body: `They keep only ${(weakest.keepRate * 100).toFixed(0)}% vs the panel's ${(metrics.overall * 100).toFixed(0)}%${divergeBeat ? `, and their churn diverges from the panel at beat ${divergeBeat.beat} (${divergeBeat.type.toLowerCase()})` : ''}. Place a beat that rewards attention to detail in the first half of Ep${nextNumber} — this cohort is ${(weakest.n / Math.max(1, metrics.panel) * 100).toFixed(0)}% of the panel (n=${weakest.n}).`,
-        evidence: `keep rate ${(weakest.keepRate * 100).toFixed(0)}% vs panel ${(metrics.overall * 100).toFixed(0)}%`,
-        severity: gap < -0.15 ? 'high' : 'medium',
+        title: `This brief is written through the ${cohortLens.archetype} lens`,
+        body: `They keep ${(cohortLens.keepRate * 100).toFixed(0)}% vs the panel's ${(metrics.overall * 100).toFixed(0)}%${divergeBeat ? `, and diverge from the panel at beat ${divergeBeat.beat} (${divergeBeat.type.toLowerCase()})` : ''}. Every directive above is re-scored for THIS cohort. Contract: give them a detail-dense beat in the first half (≥ 3 concrete details — dialogue lines or prop actions) — attention-rewarding texture is what keeps this cohort seated.`,
+        evidence: `${cohortLens.archetype} keep ${(cohortLens.keepRate * 100).toFixed(0)}% · n=${cohortLens.n}`,
+        severity: cohortLens.keepRate < metrics.overall - 0.15 ? 'high' : 'medium',
+        check: { type: 'COHORT', detailDensityMin: 3 },
       });
+    } else {
+      const weakest = [...metrics.cohorts].sort((a, b) => a.keepRate - b.keepRate)[0];
+      const gap = weakest.keepRate - metrics.overall;
+      if (gap < -0.05) {
+        // where does their churn diverge from the panel?
+        let divergeBeat: { beat: number; type: string } | null = null;
+        for (const c of weakest.curve) {
+          const panelAt = metrics.curve.find((x) => x.beat === c.beat);
+          if (panelAt && panelAt.retention - c.retention > 0.1) {
+            divergeBeat = { beat: c.beat, type: panelAt.type };
+            break;
+          }
+        }
+        directives.push({
+          kind: 'COHORT',
+          title: `Write for the ${weakest.archetype}s`,
+          body: `They keep only ${(weakest.keepRate * 100).toFixed(0)}% vs the panel's ${(metrics.overall * 100).toFixed(0)}%${divergeBeat ? `, and their churn diverges from the panel at beat ${divergeBeat.beat} (${divergeBeat.type.toLowerCase()})` : ''}. Place a beat that rewards attention to detail in the first half of Ep${nextNumber} — this cohort is ${(weakest.n / Math.max(1, metrics.panel) * 100).toFixed(0)}% of the panel (n=${weakest.n}).`,
+          evidence: `keep rate ${(weakest.keepRate * 100).toFixed(0)}% vs panel ${(metrics.overall * 100).toFixed(0)}%`,
+          severity: gap < -0.15 ? 'high' : 'medium',
+          check: { type: 'COHORT', detailDensityMin: 3 },
+        });
+      }
     }
   }
 
@@ -404,6 +466,9 @@ export async function computeWriterBrief(showId: string, arm?: string): Promise<
         body: `Cost per retained viewer rose from $${first.toFixed(4)} (Ep${armEps[0].number}) to $${lastC.toFixed(4)} (Ep${last.number}). Bias Ep${nextNumber} toward beat shapes with high measured engagement per rendered beat — reuse proven setups instead of new set pieces.`,
         evidence: `$${first.toFixed(4)} → $${lastC.toFixed(4)} per retained viewer`,
         severity: lastC > first * 1.5 ? 'high' : 'medium',
+        // machine contract: ≥ 60% of the new episode's beats reuse locations the
+        // arm has already established (resolved by the verifier from the same plans)
+        check: { type: 'ECONOMY', reuseRatioMin: 0.6 },
       });
     }
   }
@@ -411,8 +476,14 @@ export async function computeWriterBrief(showId: string, arm?: string): Promise<
   directives.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 
   const fingerprint = createHash('sha256')
-    .update(canonicalJson({ showId, arm: chosenArm, nextEpisodeNumber: nextNumber, directives }))
+    .update(canonicalJson({ showId, arm: chosenArm, cohort: cohortLens?.archetype ?? null, nextEpisodeNumber: nextNumber, directives }))
     .digest('hex');
+
+  // lens chips: top-2 keepers + bottom-2 churners (both extremes tell a story)
+  const sorted = metrics ? [...metrics.cohorts].sort((a, b) => b.keepRate - a.keepRate) : [];
+  const lenses = [...sorted.slice(0, 2), ...sorted.slice(-2)]
+    .filter((c, i, arr) => arr.findIndex((x) => x.archetype === c.archetype) === i)
+    .map((c) => ({ archetype: c.archetype, keepRate: c.keepRate, n: c.n }));
 
   return {
     showId,
@@ -421,7 +492,19 @@ export async function computeWriterBrief(showId: string, arm?: string): Promise<
     nextEpisodeNumber: nextNumber,
     basedOn: { episodes: armEps.map((e) => e.number), viewers: metrics?.panel ?? 0 },
     directives,
+    cohort: cohortLens?.archetype ?? null,
+    lenses,
     fingerprint,
     generatedAt: new Date().toISOString(),
   };
+}
+
+/** Locations the arm has already established across its screened episodes (ECONOMY contract input). */
+export async function knownLocationsForArm(showId: string, arm: string): Promise<Set<string>> {
+  const eps = await db.episode.findMany({ where: { showId, arm, status: { in: SCREENED } }, select: { beatPlan: true } });
+  const known = new Set<string>();
+  for (const ep of eps) {
+    for (const b of parseBeats(ep.beatPlan)) known.add(b.location);
+  }
+  return known;
 }

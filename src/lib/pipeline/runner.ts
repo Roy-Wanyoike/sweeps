@@ -7,6 +7,7 @@ import { repairLoop } from '@/services/repairer';
 import { renderEpisode } from '@/services/renderer';
 import { ensurePanel, simulateScreening } from '@/services/audience';
 import { computeMetrics } from '@/services/analytics';
+import { computeWriterBrief } from '@/services/arc';
 import { prepareTreatmentDirectives } from '@/services/optimizer';
 
 /**
@@ -231,6 +232,7 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
 
     // treatment arm: feed measured analytics + optimizer directives
     let directives: Awaited<ReturnType<typeof prepareTreatmentDirectives>> = [];
+    let briefApplied = false;
     if (!reused) {
       if (episode.arm === 'B' && episode.number > 1) {
         const prevMetrics = await computeMetrics(priorEps[priorEps.length - 1]?.id ?? '');
@@ -238,6 +240,19 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
           ctx.analyticsBlock = prevMetrics.cliffs
             .map((c) => `- beat ${c.beat} [${c.type}] "${c.title}" dropped ${(c.delta * 100).toFixed(1)} pts${c.quote ? ` — viewer: "${c.quote}"` : ''}`)
             .join('\n');
+        }
+        // WRITER'S BRIEF — the Arc→Writer hand-off, closed for real: the brief
+        // computed from the arm's measured panel data is injected into the writer
+        // prompt (and honored deterministically on the fallback path), then
+        // snapshotted on the episode so compliance can be verified byte-honestly.
+        try {
+          const brief = await computeWriterBrief(show.id, 'B');
+          if (brief && brief.nextEpisodeNumber === episode.number) {
+            ctx.brief = brief;
+            briefApplied = true;
+          }
+        } catch {
+          // brief is an enhancement, never a pipeline dependency
         }
         directives = await prepareTreatmentDirectives(ctx, episode.number);
         ctx.directives = directives;
@@ -255,6 +270,8 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
         status: 'COMPILING',
         beatPlan: JSON.stringify({ beats, summary }),
         summary,
+        briefJson: ctx.brief ? JSON.stringify(ctx.brief) : null,
+        briefFingerprint: briefApplied ? (ctx.brief?.fingerprint ?? null) : null,
         repairLoops: 0,
         beats: {
           create: beats.map((b) => ({
@@ -269,6 +286,8 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
     await log(episodeId, show.id, 'WRITING', 'OK', {
       beats: beats.length,
       directives: directives.length,
+      briefApplied,
+      briefFp: briefApplied ? ctx.brief?.fingerprint.slice(0, 8) : undefined,
       reusedFrom: reused ? (episode.arm === 'A' ? 'B' : 'A') : undefined,
     });
   }

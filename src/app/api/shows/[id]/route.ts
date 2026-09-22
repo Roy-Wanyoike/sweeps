@@ -5,6 +5,32 @@ import { stageSpend } from '@/lib/ai/cost-ledger';
 
 export const dynamic = 'force-dynamic';
 
+const MAX_EPISODES = 6;
+
+/** PATCH /api/shows/[id] — extend the season. Body: { episodeCount: number }.
+ *  Owners can grow the season (up to 6) so the brief→writer→panel loop keeps
+ *  running past the initial order; the count can never shrink below what exists. */
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = (await req.json()) as { episodeCount?: unknown };
+    const count = Math.round(Number(body.episodeCount));
+    if (!Number.isFinite(count) || count < 1 || count > MAX_EPISODES) {
+      return NextResponse.json({ error: `episodeCount must be an integer between 1 and ${MAX_EPISODES}` }, { status: 400 });
+    }
+    const show = await db.show.findUnique({ where: { id }, include: { episodes: { select: { number: true } } } });
+    if (!show) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    const maxExisting = show.episodes.reduce((m, e) => Math.max(m, e.number), 0);
+    if (count < maxExisting) {
+      return NextResponse.json({ error: `cannot shrink below existing episode ${maxExisting}` }, { status: 400 });
+    }
+    const updated = await db.show.update({ where: { id }, data: { episodeCount: count } });
+    return NextResponse.json({ show: { id: updated.id, episodeCount: updated.episodeCount } });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'failed' }, { status: 500 });
+  }
+}
+
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const show = await db.show.findUnique({
@@ -40,6 +66,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       spendUsd: e.spendUsd,
       retentionScore: e.retentionScore,
       summary: e.summary,
+      briefFingerprint: e.briefFingerprint,
     })),
     panelCount,
     runner: runnerStatus(),

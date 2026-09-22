@@ -31,6 +31,7 @@ import {
   FileText,
   FlaskConical,
   Loader2,
+  PenLine,
   Play,
   ShieldCheck,
   XCircle,
@@ -200,6 +201,15 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
                 <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
                   <span>
                     Episode {ep.episode.number} · arm {ep.episode.arm}
+                    {ep.episode.briefFingerprint && (
+                      <Badge
+                        variant="outline"
+                        className="ml-2 gap-1 border-primary/40 font-mono text-[9px] text-primary"
+                        title={`Written from the Writer's Brief (fingerprint ${ep.episode.briefFingerprint.slice(0, 8)}) — compliance verifiable on the Arc tab`}
+                      >
+                        <PenLine className="h-2.5 w-2.5" aria-hidden /> brief {ep.episode.briefFingerprint.slice(0, 8)}
+                      </Badge>
+                    )}
                   </span>
                   <span className="flex items-center gap-2">
                     <Badge className={STATUS_STYLES[ep.episode.status] ?? ''}>{ep.episode.status}</Badge>

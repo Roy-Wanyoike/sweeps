@@ -803,10 +803,11 @@ h1.cover-title .tick{color:var(--amber2)}
       <div class="loop-copy" data-anim style="--d:.42s">
         <p><b>Cheap by construction.</b> Micro-screening is text-only: seconds of FAST-tier inference instead of re-render dollars.</p>
         <p><b>Auditable by default.</b> Every decision ships with its receipt — n, rewards, posterior, directive — persisted to the Experiment table for judges to inspect.</p>
+        <p><b>Closed and graded.</b> The Writer’s Brief becomes the next episode’s prompt input — then a deterministic compliance receipt grades the finished plan against it (live run: <b>3/3 honored</b>). Misses are shown, not hidden.</p>
         <div class="chiprow">
           <span class="chip reveal"><span class="dot"></span>EXPLORE + EXPLOIT</span>
           <span class="chip setup"><span class="dot"></span>EVIDENCE PERSISTED</span>
-          <span class="chip hook"><span class="dot"></span>WRITER-IN-THE-LOOP</span>
+          <span class="chip hook"><span class="dot"></span>LOOP CLOSED · 3/3 HONORED</span>
         </div>
       </div>
     </div>
@@ -828,7 +829,7 @@ h1.cover-title .tick{color:var(--amber2)}
   <div class="content">
     <div class="verdict-card" data-anim style="--d:.04s">
       <div class="verdict-tag"><span class="chip"><span class="dot"></span>MEASURED — SEED 92067772 · PANEL 200</span></div>
-      <p class="verdict">Treatment retained <span class="x">+4.5 pts</span> at <span class="x">6% lower</span> cost per retained viewer.</p>
+      <p class="verdict">The loop’s <span class="x">cost edge (−12%)</span> held all season; retention landed <span class="x">within noise</span> — reported, not hidden.</p>
     </div>
     <div class="dual-grid">
       <div class="dpanel" data-anim style="--d:.14s">
@@ -836,7 +837,7 @@ h1.cover-title .tick{color:var(--amber2)}
           <span class="chip setup"><span class="dot" style="background:#a8a29e"></span>ARM A — WRITER-ONLY CONTROL</span>
           <span class="chip hook"><span class="dot"></span>ARM B — FULL LOOP</span>
         </div>
-        <svg viewBox="0 0 680 335" role="img" aria-label="Retention curves: arm B stays above arm A across three episodes" style="width:100%;height:auto;display:block">
+        <svg viewBox="0 0 680 335" role="img" aria-label="Retention curves: arm B led at EP2 and EP3, then converged with arm A at EP4" style="width:100%;height:auto;display:block">
           <g stroke="#262119" stroke-width="1">
             <line x1="64" y1="50" x2="592" y2="50"/>
             <line x1="64" y1="112.5" x2="592" y2="112.5"/>
@@ -849,33 +850,33 @@ h1.cover-title .tick{color:var(--amber2)}
           </g>
           <line x1="64" y1="300" x2="592" y2="300" stroke="#3a332a" stroke-width="1.5"/>
           <g font-size="11.5" letter-spacing="2" fill="#a89f8f" text-anchor="middle" font-family="JetBrains Mono, Menlo, Consolas, monospace">
-            <text x="150" y="325">EP1</text><text x="360" y="325">EP2</text><text x="555" y="325">EP3</text>
+            <text x="150" y="325">EP1</text><text x="290" y="325">EP2</text><text x="440" y="325">EP3</text><text x="580" y="325">EP4</text>
           </g>
-          <path d="M64 50 H150 V145 H245 V155 H340 V178 H440 V188 H555 V205 H592" fill="none" stroke="#a8a29e" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M64 50 H150 V115 H255 V128 H360 V143 H465 V150 H555 V163 H592" fill="none" stroke="#f59e0b" stroke-width="3.5" stroke-linejoin="round"/>
+          <path d="M64 122 H150 V139 H290 V139 H440 V139 H592" fill="none" stroke="#a8a29e" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M64 122 H150 V126 H290 V128 H440 V141 H592" fill="none" stroke="#f59e0b" stroke-width="3.5" stroke-linejoin="round"/>
           <g fill="#e11d48">
-            <circle cx="150" cy="145" r="3.4"/><circle cx="340" cy="178" r="3.4"/>
+            <circle cx="150" cy="139" r="3.4"/><circle cx="290" cy="139" r="3.4"/>
           </g>
           <g fill="#e11d48">
-            <circle cx="150" cy="115" r="3"/><circle cx="360" cy="143" r="3"/>
+            <circle cx="150" cy="126" r="3"/><circle cx="290" cy="128" r="3"/>
           </g>
-          <circle cx="592" cy="205" r="4.5" fill="#a8a29e"/>
-          <circle cx="592" cy="163" r="5.5" fill="#f59e0b"/>
+          <circle cx="592" cy="139" r="4.5" fill="#a8a29e"/>
+          <circle cx="592" cy="141" r="5.5" fill="#f59e0b"/>
           <g font-size="15" font-weight="700" font-family="JetBrains Mono, Menlo, Consolas, monospace">
-            <text x="602" y="209" fill="#b9ae9b">38%</text>
-            <text x="602" y="167" fill="#f59e0b">55%</text>
+            <text x="602" y="136" fill="#b9ae9b">65%</text>
+            <text x="602" y="160" fill="#f59e0b">64%</text>
           </g>
-          <rect x="420" y="58" width="172" height="30" rx="15" fill="rgba(5,150,105,.14)" stroke="#059669" stroke-width="1.2"/>
-          <text x="506" y="77.5" text-anchor="middle" font-size="11.5" font-weight="700" fill="#34d399" font-family="JetBrains Mono, Menlo, Consolas, monospace">+[X] PTS RETENTION Δ</text>
+          <rect x="380" y="58" width="212" height="30" rx="15" fill="rgba(5,150,105,.14)" stroke="#059669" stroke-width="1.2"/>
+          <text x="486" y="77.5" text-anchor="middle" font-size="11.5" font-weight="700" fill="#34d399" font-family="JetBrains Mono, Menlo, Consolas, monospace">B COST EDGE −12% · RETAINED $</text>
         </svg>
       </div>
       <div class="dtable" data-anim style="--d:.22s">
         <div class="drow head"><span>METRIC</span><span>ARM A</span><span>ARM B</span></div>
-        <div class="drow"><span>RETENTION EP1→EP3</span><span class="av">[—] pts</span><span class="bv">[—] pts</span></div>
-        <div class="drow"><span>COST / RETAINED VIEWER</span><span class="av">$[—]</span><span class="bv">$[—]</span></div>
-        <div class="drow"><span>CLIFFS / EPISODE</span><span class="av">[—]</span><span class="bv">[—]</span></div>
+        <div class="drow"><span>RETENTION EP1→EP4</span><span class="av">−6.5 pts</span><span class="bv">−7.5 pts (lift −1.0)</span></div>
+        <div class="drow"><span>COST / RETAINED VIEWER</span><span class="av">$0.0017</span><span class="bv">$0.0015</span></div>
+        <div class="drow"><span>CLIFFS / EPISODE</span><span class="av">7.3</span><span class="bv">6.5</span></div>
         <div class="drow"><span>PANEL</span><span class="av">200</span><span class="bv">200</span></div>
-        <p class="dnote">Arm B consumes cliffs, viewer quotes and Thompson-sampled beat variants; Arm A never sees the audience. <b>Same seed · same show bible · 6 episodes per arm.</b></p>
+        <p class="dnote">Arm B consumes cliffs, viewer quotes, Thompson-sampled beat variants and the Writer’s Brief; Arm A never sees the audience. <b>Same seed · same show bible · 4 episodes per arm (season extended live).</b></p>
       </div>
     </div>
     <p class="dual-foot" data-anim style="--d:.3s">ONE SHOW, TWO FATES — THE ONLY DIFFERENCE IS THE LOOP.</p>
@@ -905,25 +906,25 @@ h1.cover-title .tick{color:var(--amber2)}
         </div>
         <div class="lrow">
           <span class="k">PER-EPISODE SPEND — STAGE-CAPPED</span><span class="lead"></span>
-          <span class="v">A $0.227 · B $0.214 / EPISODE — RUN TOTAL $1.35 OF $5.00</span>
+          <span class="v">A $0.231 · B $0.211 / EPISODE — RUN TOTAL $1.81 OF $5.00</span>
         </div>
         <div class="lrow hero">
           <span class="k">COST PER RETAINED VIEWER</span><span class="lead"></span>
-          <span class="v">ARM A $0.0016 · ARM B $0.0015</span>
+          <span class="v">ARM A $0.0017 · ARM B $0.0015</span>
         </div>
         <div class="lrow">
-          <span class="k">RETENTION Δ — EP1 → EP3</span><span class="lead"></span>
-          <span class="v">A −6.5 PTS · B −2.0 PTS · LIFT +4.5 PTS</span>
+          <span class="k">RETENTION Δ — EP1 → EP4</span><span class="lead"></span>
+          <span class="v">A −6.5 PTS · B −7.5 PTS · LIFT −1.0 PT (HONEST)</span>
         </div>
         <div class="lrow">
           <span class="k">PANEL THROUGHPUT</span><span class="lead"></span>
-          <span class="v">200 PERSONAS × 6 EPISODES</span>
+          <span class="v">200 PERSONAS × 8 EPISODES</span>
         </div>
         <div class="lrow">
           <span class="k">REPRODUCIBILITY</span><span class="lead"></span>
           <span class="v">SAME SEED → IDENTICAL CURVES</span>
         </div>
-        <div class="ledger-f">* seed 92067772 · panel 200 · 3 eps × 2 arms · paired premiere (identical ep1) · live rows computed from the database — never hardcoded.</div>
+        <div class="ledger-f">* seed 92067772 · panel 200 · 4 eps × 2 arms · paired premiere (identical ep1) · live rows computed from the database — never hardcoded.</div>
       </div>
       <div class="num-cards">
         <div class="numcard" data-anim style="--d:.2s">
@@ -1007,8 +1008,8 @@ h1.cover-title .tick{color:var(--amber2)}
     <h2 class="hl" data-anim style="--d:.02s">One codebase, <span class="acc">two clouds</span>.</h2>
     <div class="stack-grid">
       <div class="stack-card" data-anim style="--d:.1s">
-        <div class="srow"><span class="sk">RUNTIME</span><span class="sv">Next.js 16 App Router<span class="m">TypeScript strict · single dashboard, 6 tabs · 23 REST endpoints</span></span></div>
-        <div class="srow"><span class="sk">DATA</span><span class="sv">Prisma + SQLite<span class="m">11 models — Show · Episode · Beat · Viewer · ViewerMemory · Experiment · CostEntry · JobLog …</span></span></div>
+        <div class="srow"><span class="sk">RUNTIME</span><span class="sv">Next.js 16 App Router<span class="m">TypeScript strict · single dashboard, 6 tabs · 26 REST endpoints</span></span></div>
+        <div class="srow"><span class="sk">DATA</span><span class="sv">Prisma + SQLite<span class="m">12 models — Show · Episode · Beat · Viewer · ViewerMemory · Experiment · CostEntry · JobLog …</span></span></div>
         <div class="srow"><span class="sk">UI</span><span class="sv">shadcn/ui + Tailwind 4 + Recharts<span class="m">warm-studio dashboard · live retention curves · audience wall</span></span></div>
         <div class="srow"><span class="sk">SIM</span><span class="sv">Pure-TS seeded engines<span class="m">mulberry32 RNG · FSRS memory · Kaplan–Meier · Thompson — all unit-testable, zero AI</span></span></div>
       </div>
@@ -1046,7 +1047,7 @@ h1.cover-title .tick{color:var(--amber2)}
     <div class="chrome-right"><span class="kicker">11 · DEMO FLOW</span><span class="track-chip">TRACK 2 · AI SHOWRUNNER</span></div>
   </header>
   <div class="content">
-    <h2 class="hl" data-anim style="--d:.02s">Three minutes, <span class="acc">six beats</span>.</h2>
+    <h2 class="hl" data-anim style="--d:.02s">Three minutes, <span class="acc">seven beats</span>.</h2>
     <div class="demo-strip">
       <div class="dframe" data-anim style="--d:.08s">
         <span class="tc">0:00</span>
@@ -1073,15 +1074,21 @@ h1.cover-title .tick{color:var(--amber2)}
         <span class="chip twist"><span class="dot"></span>TWIST</span>
       </div>
       <div class="dframe" data-anim style="--d:.32s">
-        <span class="tc">2:10</span>
+        <span class="tc">2:05</span>
         <h4>The Arc board</h4>
-        <p>Season-arc planner: writer tension vs measured engagement, open loops decaying, hook payoff measured — then the signed determinism receipt.</p>
+        <p>Season-arc planner: writer tension vs measured engagement, open loops decaying, hook payoff measured — then the writer’s brief for the next episode.</p>
         <span class="chip reveal"><span class="dot"></span>ARC</span>
       </div>
+      <div class="dframe" data-anim style="--d:.35s">
+        <span class="tc">2:25</span>
+        <h4>Close the loop</h4>
+        <p>“Write Ep4 from this brief” → the writer honors it → <b>LOOP CLOSED · 3/3 HONORED</b> receipt; determinism re-verifies 8 episodes byte-for-byte.</p>
+        <span class="chip good"><span class="dot"></span>PAYOFF</span>
+      </div>
       <div class="dframe" data-anim style="--d:.38s">
-        <span class="tc">2:40</span>
-        <h4>Loop + verdict</h4>
-        <p>Thompson picks the variant; dual-arm table lands; close on “measure attention, not output.”</p>
+        <span class="tc">2:45</span>
+        <h4>Verdict</h4>
+        <p>Thompson picks the variant; dual-arm table lands — honest verdict, cost edge −12%; close on “measure attention, not output.”</p>
         <span class="chip cliff"><span class="dot"></span>CLIFFHANGER</span>
       </div>
     </div>

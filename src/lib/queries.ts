@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BeatType, CompileReport, ViewerPersona } from '@/lib/contracts';
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
@@ -12,9 +12,9 @@ async function j<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-const post = (url: string, body?: unknown) => ({
+const post = (url: string, body?: unknown, method: 'POST' | 'PATCH' = 'POST') => ({
   url,
-  init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined },
+  init: { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined },
 });
 
 /* --------------------------------- types --------------------------------- */
@@ -66,6 +66,7 @@ export interface EpisodeRow {
   spendUsd: number;
   retentionScore: number | null;
   summary: string | null;
+  briefFingerprint?: string | null;
 }
 
 export interface ShowDetail {
@@ -286,6 +287,12 @@ export interface BriefDirective {
   body: string;
   evidence: string;
   severity: 'high' | 'medium' | 'low';
+  check?:
+    | { type: 'CALLBACK'; threadTitle: string; withinFirstNBeats: number }
+    | { type: 'HOOK'; cliffhangerTitle: string }
+    | { type: 'PROTECT_BEAT'; maxFirstHalfSec: number }
+    | { type: 'COHORT'; detailDensityMin: number }
+    | { type: 'ECONOMY'; reuseRatioMin: number };
 }
 
 export interface WriterBriefData {
@@ -295,8 +302,24 @@ export interface WriterBriefData {
   nextEpisodeNumber: number;
   basedOn: { episodes: number[]; viewers: number };
   directives: BriefDirective[];
+  cohort: string | null;
+  lenses: { archetype: string; keepRate: number; n: number }[];
   fingerprint: string;
   generatedAt: string;
+}
+
+export interface BriefComplianceData {
+  episodeId: string;
+  episodeNumber: number;
+  arm: string;
+  briefFingerprint: string | null;
+  cohort: string | null;
+  rows: { kind: BriefDirective['kind']; title: string; honored: boolean; informational: boolean; evidence: string }[];
+  honoredCount: number;
+  honoredCheckable: number;
+  checkable: number;
+  total: number;
+  allHonored: boolean;
 }
 
 /* ---------------------------------- queries --------------------------------- */
@@ -407,13 +430,27 @@ export function useShowArc(showId: string | null) {
   });
 }
 
-/** Writer's brief — measured-data directives for the next episode (follows the selected arm). */
-export function useWriterBrief(showId: string | null, arm: string) {
+/** Writer's brief — measured-data directives for the next episode (follows the selected arm).
+ *  Pass a cohort archetype to write the brief through that cohort's lens. */
+export function useWriterBrief(showId: string | null, arm: string, cohort: string | null = null) {
   return useQuery({
-    queryKey: ['brief', showId, arm],
-    queryFn: () => j<{ brief: WriterBriefData }>(`/api/shows/${showId}/brief?arm=${arm}`),
+    queryKey: ['brief', showId, arm, cohort],
+    queryFn: () =>
+      j<{ brief: WriterBriefData }>(`/api/shows/${showId}/brief?arm=${arm}${cohort ? `&cohort=${encodeURIComponent(cohort)}` : ''}`),
     enabled: Boolean(showId),
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Directive-compliance receipt — per-directive proof the writer honored the brief. */
+export function useBriefCompliance(episodeId: string | null) {
+  return useQuery({
+    queryKey: ['brief-compliance', episodeId],
+    queryFn: () => j<{ compliance: BriefComplianceData }>(`/api/episodes/${episodeId}/brief-compliance`),
+    enabled: Boolean(episodeId),
+    refetchInterval: (query) => (query.state.error ? false : 4000),
+    retry: false,
   });
 }
 
@@ -460,6 +497,18 @@ export function useRunEpisode(showId: string | null) {
     mutationFn: async (arm: string) => {
       const { url, init } = post(`/api/shows/${showId}/episodes`, { arm });
       return j<{ episodeId: string }>(url, init);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['show', showId] }),
+  });
+}
+
+/** Extend the season order (up to 6) — the loop keeps running past the initial order. */
+export function useExtendSeason(showId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (episodeCount: number) => {
+      const { url, init } = post(`/api/shows/${showId}`, { episodeCount }, 'PATCH');
+      return j<{ show: { id: string; episodeCount: number } }>(url, init);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['show', showId] }),
   });

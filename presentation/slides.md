@@ -107,6 +107,7 @@ Every violation ships a machine-actionable fix the Writer auto-applies — bound
 3. **Micro-screen** — 40-viewer subsample, text-only — no re-render
 4. **Thompson sample** — Beta posteriors pick the winner; ties break on evidence
 5. **Inject directive** — chosen variant lands in the next episode’s writer prompt
+6. **Close the loop** — the Writer’s Brief becomes the next episode’s prompt input, and a deterministic compliance receipt grades the writer against it
 
 **Experiment receipt (mock) — #014 · EP2 · SLOT 7 — CLIFFHANGER → RESOLVED**
 
@@ -122,20 +123,32 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 
 ---
 
+## 07b · The loop, closed and graded — Writer’s Brief → writer → compliance receipt
+
+**The writer is probabilistic. The grading is deterministic.**
+
+- The Arc tab distills the measured season into a fingerprinted **Writer’s Brief** — rework the worst measured beat, callback the thread FSRS decay is about to eat, sharpen the hook hand-off, write for the churning cohort, watch the cost curve. Zero AI to produce it.
+- **“Write EpN from this brief”** injects those directives into the real writer prompt (arm B only — the control stays blind), then snapshots the brief onto the episode.
+- When the episode lands, a **compliance receipt** verifies every directive’s machine contract against the finished plan: callback title present in the first beats ✓ · beat 0 re-states the cliffhanger ✓ · first-half beats under the churn-derived length cap ✓ · detail density for the weakest cohort ✓. Live run: **3/3 honored**.
+- Misses are shown, not hidden — with an LLM writer the receipt becomes an honest quality gate, not decoration.
+- **Cohort lens**: re-write the same brief through the Skimmer’s eyes — their own churn curve picks the protect-beat. Same season, different writer’s room.
+
+---
+
 ## 08 · Dual-arm proof — one show, two fates
 
-> **“Treatment retained +4.5 pts at 6% lower cost per retained viewer.”**
+> **“Measured honesty: the loop’s cost edge (−12%) held for a full season; retention landed within noise.”**
 > `MEASURED — SEED 92067772 · PANEL 200`
 
-- **Arm A — writer-only control** (never sees the audience) vs **Arm B — full loop** (cliffs + viewer quotes + Thompson-sampled variants fed back).
-- Same seed · same show bible · same 200-viewer panel · 6 episodes per arm.
-- Measured KM survival: Arm B stays above Arm A at every post-premiere episode (B 69.5% vs A 65.0% at EP3).
+- **Arm A — writer-only control** (never sees the audience) vs **Arm B — full loop** (cliffs + viewer quotes + Thompson-sampled variants + the Writer’s Brief fed back).
+- Same seed · same show bible · same 200-viewer panel · 4 episodes per arm (season extended live).
+- Measured KM survival: B led at EP2–EP3 (70.0% / 69.5% vs A 65.0%); EP4 — the first brief-fed episode — landed at 64% vs 65%. The dashboard reports the wash-out instead of hiding it.
 
 | Metric | Arm A | Arm B |
 |---|---|---|
-| Retention EP1→EP3 | −6.5 pts | **−2.0 pts** |
-| Cost / retained viewer | $0.0016 | **$0.0015** |
-| Cliffs / episode (avg) | 7.0 | **5.7** (EP3: 8 vs **4**) |
+| Retention EP1→EP4 | −6.5 pts | −7.5 pts (**lift −1.0 pt — honest noise**) |
+| Cost / retained viewer | $0.0017 | **$0.0015** (−12%, whole season) |
+| Cliffs / episode (avg) | 7.3 | **6.5** |
 | Panel | 200 | 200 |
 
 ---
@@ -147,10 +160,10 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 | | Value |
 |---|---|
 | Compile-gate rejects — `fixtures/bad-beat.json` | **$0.00 spent · ~$0.72 saved** |
-| Per-episode spend (stage-capped) | A $0.227 · B $0.214 / episode — run total $1.35 of $5.00 |
-| **Cost per retained viewer** | **Arm A $0.0016 · Arm B $0.0015** |
-| Retention Δ EP1→EP3 | A −6.5 pts · B −2.0 pts · **lift +4.5 pts** |
-| Panel throughput | 200 personas × 6 episodes |
+| Per-episode spend (stage-capped) | A $0.231 · B $0.211 / episode — run total $1.81 of $5.00 |
+| **Cost per retained viewer** | **Arm A $0.0017 · Arm B $0.0015** |
+| Retention Δ EP1→EP4 | A −6.5 pts · B −7.5 pts · **lift −1.0 pt (honest)** |
+| Panel throughput | 200 personas × 8 episodes |
 | Reproducibility | same seed → identical curves |
 
 - **200** — panel size, persona-agents: 12 archetypes × seeded jitter, decaying memory + churn threshold each.
@@ -185,16 +198,17 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 
 ---
 
-## 12 · Demo flow — three minutes, six beats
+## 12 · Demo flow — three minutes, seven beats
 
 | Time | Beat | What the judge sees |
 |---|---|---|
 | 0:00 | **HOOK** | “Every AI showrunner can generate an episode. None of them know if anyone would watch.” |
 | 0:20 | **SETUP** | One-line premise → show bible, 12 archetypes and the 200-viewer panel materialize. |
 | 0:50 | **REVEAL** | The Gate: bad fixture rejected — 2 ERRORs + 1 WARN, $0.00 spent; repair loop counts down live. |
-| 1:30 | **TWIST** | 200 personas screen Ep1: retention curve draws, comment wall fills, memory inspector decays. |
-| 2:10 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying below the recall bar, hook payoff measured (loyalty-coupled, graded) — then the **writer's brief** for the next episode and the determinism receipt, signed. |
-| 2:40 | **CLIFFHANGER** | Thompson picks the variant; dual-arm table lands; close on “measure attention, not output.” |
+| 1:20 | **TWIST** | 200 personas screen Ep1: retention curve draws, comment wall fills, memory inspector decays. |
+| 1:50 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying, hook payoff graded — then the **writer’s brief** for the next episode. |
+| 2:20 | **PAYOFF** | **“Write Ep4 from this brief”** → writer honors it → **LOOP CLOSED · 3/3 HONORED** receipt; season extended live. Determinism receipt re-verifies 8 episodes byte-for-byte, signed. |
+| 2:45 | **CLIFFHANGER** | Thompson picks the variant; dual-arm table lands (honest verdict, cost edge −12%); close on “measure attention, not output.” |
 
 Single screen recording, one take — ends on the live dashboard, DUAL mode running.
 

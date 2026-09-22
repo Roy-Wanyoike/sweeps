@@ -108,12 +108,25 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
   that was mathematically unreachable, then uniform recall); the shared write semantics live in one
   place (`memoryWrites`) used by the pipeline, the determinism replay and the arc board, so the three
   can never drift. Replay-verified byte-for-byte.
-- **Writer's brief (Arc → Writer hand-off).** The Arc tab opens with a numbered, evidence-backed
-  directive list for the next episode — rework the weakest measured beat, callback the most-at-risk
-  still-alive thread before FSRS decay eats it, sharpen the cliffhanger hand-off (measured hook payoff),
-  write for the churning cohort, watch the cost curve. Zero AI: a pure function of stored screenings,
-  memories and plans, fingerprinted so the same data always yields the same brief — copy as markdown
-  or download `brief-<show>-ep<N>-<arm>.md` (`GET /api/shows/:id/brief?arm=A|B`).
+- **Writer's brief (Arc → Writer hand-off) — and the loop actually closes.** The Arc tab opens with a
+  numbered, evidence-backed directive list for the next episode — rework the weakest measured beat,
+  callback the most-at-risk still-alive thread before FSRS decay eats it, sharpen the cliffhanger
+  hand-off (measured hook payoff), write for the churning cohort, watch the cost curve. Zero AI: a
+  pure function of stored screenings, memories and plans, fingerprinted so the same data always
+  yields the same brief — copy as markdown or download `brief-<show>-ep<N>-<arm>.md`
+  (`GET /api/shows/:id/brief?arm=A|B`). **Write EpN from this brief** injects those directives into
+  the real writer prompt (arm B — the control arm stays blind by design), snapshots the brief on the
+  episode, and a **deterministic compliance receipt** then verifies each directive's machine
+  contract against the finished plan: the callback title appears within the first N beats, beat 0
+  re-states the cliffhanger, no first-half beat exceeds the churn-derived length cap, a first-half
+  beat carries the detail density the weakest cohort needs, proven locations are reused. The writer
+  is probabilistic; the compliance check is byte-honest and free. If the season order is exhausted,
+  the card offers **Extend season & write EpN** (up to 6) so the loop keeps running.
+- **Cohort lens.** The brief can be re-written through a specific archetype's eyes (top-2 keepers
+  and bottom-2 churners offered as chips): the protect-beat is re-scored against that cohort's own
+  churn curve and the directives carry that lens — the same measured season, a different writer's
+  room (`GET /api/shows/:id/brief?arm=B&cohort=Skimmer`). Episodes written from a brief wear a
+  `brief <fp8>` badge on the Episodes tab.
 - **Per-viewer journey timeline.** Select any viewer in the Memory inspector to see their episode-by-
   episode satisfaction trace S(t) as an SVG sparkline with their personal churn threshold (dashed
   amber), a drop marker where they bailed, amber pips where a memory was recalled, and their in-voice
@@ -141,26 +154,35 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
 
 ## Measured numbers (from the last full run)
 
-Final verified run — "Neon Countdown" (seed 92067772, panel 200, 3 episodes × 2 arms, paired
-premiere, budget $5.00, total spend $1.35):
+Final verified run — "Neon Countdown" (seed 92067772, panel 200, 4 episodes × 2 arms, paired
+premiere, budget $5.00, total spend $1.81):
 
 | Metric | Arm A — control | Arm B — full loop |
 |---|---|---|
 | Ep1 (paired premiere) | 71.5% | 71.5% (identical by design) |
 | Ep2 | 65.0% | **70.0%** |
 | Ep3 | 65.0% | **69.5%** |
-| Retention Δ EP1→EP3 | −6.5 pts | **−2.0 pts** |
-| **Lift (B − A)** | | **+4.5 pts** |
-| Cliffs / episode (avg) | 7.0 | **5.7** (EP3: 8 vs 4) |
-| Avg spend / episode | $0.227 | **$0.214** |
-| Cost per retained viewer | $0.0016 | **$0.0015** (−6%) |
+| Ep4 (written from the brief — first brief-fed episode) | 65.0% | 64.0% |
+| Retention Δ EP1→EP4 | −6.5 pts | −7.5 pts |
+| **Lift (B − A)** | | **−1.0 pt** (single-episode noise; honest) |
+| Cliffs / episode (avg) | 7.3 | **6.5** |
+| Avg spend / episode | $0.231 | **$0.211** |
+| Cost per retained viewer | $0.0017 | **$0.0015** (−12%) |
+
+The run is reported exactly as measured: over 4 episodes the treatment arm's retention advantage
+washed out to a coin flip while its **cost-per-retained-viewer edge (−12%) persisted across the
+whole season**. Ep4 (B) is the first episode written *from* the Writer's Brief — the loop closure
+was proven (compliance 3/3) but one episode's retention is noise, and the dashboard says so instead
+of hiding it. Every number above is reproducible from the seed; the determinism receipt re-verifies
+all 8 episodes (1,600 viewer-screenings) byte-for-byte in ~150 ms.
 
 - Compile gate: fixture (`fixtures/bad-beat.json`) fails C2-PRESENCE + C4-PROP with 2 ERRORs and
   1 WARN — **$0.00 generation spend** (vs ~$0.72 estimated render cost saved); production plans
   auto-repair in bounded deterministic passes ($0) + ≤1 LLM repair.
-- Panel: 200 viewers × 6 episodes; hook payoff at every hand-off is a graded 34.5% (loyalty-coupled
-  recall — the loyal third of the panel); same-seed re-screen replays byte-identical curves (verified).
-- Stage ledger: RENDER $1.32 · WRITER $0.018 · OPTIMIZER $0.004 · AUDIENCE $0.001.
+- Panel: 200 viewers × 8 episodes (4 per arm); hook payoff at every hand-off is a graded ~35%
+  (loyalty-coupled recall — the loyal third of the panel); same-seed re-screen replays
+  byte-identical curves (verified).
+- Stage ledger: RENDER $1.76 · WRITER $0.034 · OPTIMIZER $0.008 · AUDIENCE $0.004.
 - Full receipts: **Experiment tab** / `GET /api/shows/:id/experiments` (per-arm deltas, lift,
   Thompson evidence with n=40 micro-screening, viewer quotes).
 

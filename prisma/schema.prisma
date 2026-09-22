@@ -63,6 +63,8 @@ model Episode {
   beatPlan       String? // JSON Beat[]
   compileReport  String? // JSON CompileReport
   summary        String?
+  briefJson      String? // JSON WriterBrief snapshot — the exact brief the writer saw
+  briefFingerprint String? // sha256 of the applied brief (null = written blind)
   repairLoops    Int        @default(0)
   spendUsd       Float      @default(0)
   retentionScore Float?
