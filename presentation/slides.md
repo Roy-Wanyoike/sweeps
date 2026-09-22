@@ -123,18 +123,18 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 
 ## 08 · Dual-arm proof — one show, two fates
 
-> **“Treatment retained +[X] pts at [Y]% lower cost per retained viewer.”**
-> `[MEASURED — SEE README]` *(numbers land after the final measured run)*
+> **“Treatment retained +4.5 pts at 6% lower cost per retained viewer.”**
+> `MEASURED — SEED 92067772 · PANEL 200`
 
 - **Arm A — writer-only control** (never sees the audience) vs **Arm B — full loop** (cliffs + viewer quotes + Thompson-sampled variants fed back).
 - Same seed · same show bible · same 200-viewer panel · 6 episodes per arm.
-- Retention sketch: KM survival, Arm B stays above Arm A at every episode boundary (B ≈ 55% vs A ≈ 38% at EP3 in the mock sketch).
+- Measured KM survival: Arm B stays above Arm A at every post-premiere episode (B 69.5% vs A 65.0% at EP3).
 
 | Metric | Arm A | Arm B |
 |---|---|---|
-| Retention EP1→EP3 | [—] pts | [—] pts |
-| Cost / retained viewer | $[—] | $[—] |
-| Cliffs / episode | [—] | [—] |
+| Retention EP1→EP3 | −6.5 pts | **−2.0 pts** |
+| Cost / retained viewer | $0.0016 | **$0.0015** |
+| Cliffs / episode (avg) | 7.0 | **5.7** (EP3: 8 vs **4**) |
 | Panel | 200 | 200 |
 
 ---
@@ -145,10 +145,10 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 
 | | Value |
 |---|---|
-| Compile-gate rejects — `fixtures/bad-beat.json` | **$0.00 spent · ~$0.72 saved** `[MEASURED]` |
-| Per-episode spend (stage-capped) | $[—] / episode |
-| **Cost per retained viewer** | **Arm A $[—] · Arm B $[—]** |
-| Retention Δ EP1→EP3 | A [—] pts · B [—] pts |
+| Compile-gate rejects — `fixtures/bad-beat.json` | **$0.00 spent · ~$0.72 saved** |
+| Per-episode spend (stage-capped) | A $0.227 · B $0.214 / episode — run total $1.35 of $5.00 |
+| **Cost per retained viewer** | **Arm A $0.0016 · Arm B $0.0015** |
+| Retention Δ EP1→EP3 | A −6.5 pts · B −2.0 pts · **lift +4.5 pts** |
 | Panel throughput | 200 personas × 6 episodes |
 | Reproducibility | same seed → identical curves |
 
