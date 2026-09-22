@@ -82,6 +82,19 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
 - **Arm-by-episode receipt.** The Experiment tab adds a full A/B receipt table (retention, Δ pts
   color-scaled, spend, cost-per-retained-viewer trend) plus a verdict sparkline and Thompson
   reward-split bars — every number the optimizer saw, printable for judges.
+- **Determinism receipt.** One click (or `GET /api/shows/:id/verify`) replays *every* screening from
+  the master seed — pure code, no AI, no DB writes — and byte-compares each viewer's watch-event
+  stream against what actually aired: 200 viewers × 6 episodes = 1,200 rows verified in ~100 ms.
+  The receipt shows per-episode SHA-256 hashes, rows checked, replay time and a copyable show
+  fingerprint. Ep1 (A) and Ep1 (B) display the *same hash* — the paired premiere, provable. If a
+  re-compile ever drifts the curves, the receipt turns red and says so honestly.
+- **Per-viewer journey timeline.** Select any viewer in the Memory inspector to see their episode-by-
+  episode satisfaction trace S(t) as an SVG sparkline with their personal churn threshold (dashed
+  amber), a drop marker where they bailed, amber pips where a memory was recalled, and their in-voice
+  comment — the FSRS memory model made legible, one human story at a time.
+- **Archetype color system.** All 12 archetypes carry consistent warm-palette identity dots across
+  the persona gallery, journey timeline, memory inspector and keep-rate board — churners and
+  keepers are trackable by color at a glance.
 - **Stage-aware budget bar.** The header budget meter is segmented by pipeline stage
   (render/writer/audience/optimizer), so governance caps are visible at a glance.
 

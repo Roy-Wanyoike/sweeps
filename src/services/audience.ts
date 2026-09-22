@@ -39,8 +39,8 @@ const FIRST_NAMES = [
   'Milo', 'Nia', 'Otto', 'Pia', 'Quinn', 'Rosa', 'Sol', 'Tess', 'Uma', 'Vik', 'Wren', 'Xan', 'Yara', 'Zeke',
 ];
 
-const IMPACT: Partial<Record<BeatType, number>> = { CLIFFHANGER: 0.9, TWIST: 0.8, REVEAL: 0.6, HOOK: 0.4 };
-const KEY_TYPES = new Set<BeatType>(['HOOK', 'REVEAL', 'TWIST', 'CLIFFHANGER']);
+export const IMPACT: Partial<Record<BeatType, number>> = { CLIFFHANGER: 0.9, TWIST: 0.8, REVEAL: 0.6, HOOK: 0.4 };
+export const KEY_TYPES = new Set<BeatType>(['HOOK', 'REVEAL', 'TWIST', 'CLIFFHANGER']);
 
 export function generatePersonas(showId: string, panelSize: number, masterSeed: number): ViewerPersona[] {
   const personas: ViewerPersona[] = [];

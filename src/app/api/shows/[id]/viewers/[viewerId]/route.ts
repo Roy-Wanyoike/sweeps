@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { jparse, retrievability, ViewerPersona } from '@/lib/contracts';
+import { jparse, retrievability, WatchEvent, ViewerPersona } from '@/lib/contracts';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,13 +33,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       lastSeenEp: m.lastSeenEp,
       retrievability: Number(retrievability(m.stability, Math.max(0, latestEp - m.lastSeenEp)).toFixed(3)),
     })),
-    screenings: armScreenings.map((s) => ({
-      episodeNumber: s.episode.number,
-      arm: s.episode.arm,
-      keepWatching: s.keepWatching,
-      dropAtBeat: s.dropAtBeat,
-      satisfaction: s.satisfaction,
-      comment: s.comment,
-    })),
+    // journey timeline: per-beat satisfaction trace S(t) for every screening this viewer attended
+    screenings: armScreenings
+      .map((s) => ({
+        episodeNumber: s.episode.number,
+        arm: s.episode.arm,
+        keepWatching: s.keepWatching,
+        dropAtBeat: s.dropAtBeat,
+        satisfaction: s.satisfaction,
+        comment: s.comment,
+        sentiment: s.sentiment,
+        curve: jparse<WatchEvent[]>(s.events, []).map((e) => ({
+          beat: e.beat,
+          S: e.S,
+          recalled: e.recalled ?? [],
+        })),
+      }))
+      .sort((a, b) => a.episodeNumber - b.episodeNumber),
   });
 }

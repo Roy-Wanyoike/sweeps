@@ -186,7 +186,46 @@ export interface PersonaRow {
 export interface ViewerDetail {
   viewer: { id: string; name: string; archetype: string; persona: ViewerPersona | null };
   memories: { key: string; content: string; stability: number; lastSeenEp: number; retrievability: number }[];
-  screenings: { episodeNumber: number; arm: string; keepWatching: boolean; dropAtBeat: number | null; satisfaction: number; comment: string | null }[];
+  screenings: {
+    episodeNumber: number;
+    arm: string;
+    keepWatching: boolean;
+    dropAtBeat: number | null;
+    satisfaction: number;
+    comment: string | null;
+    sentiment: string | null;
+    curve: { beat: number; S: number; recalled: string[] }[];
+  }[];
+}
+
+export interface VerifyEpisodeReceipt {
+  epNumber: number;
+  arm: string;
+  status: string;
+  beatCount: number;
+  checkedRows: number;
+  mismatchRows: number;
+  match: boolean;
+  storedHash: string;
+  computedHash: string;
+  details: { viewerId: string; field: string }[];
+}
+
+export interface VerifyReceipt {
+  ok: boolean;
+  showId: string;
+  title: string;
+  seed: number;
+  panelSize: number;
+  viewerCount: number;
+  episodes: VerifyEpisodeReceipt[];
+  checkedRows: number;
+  mismatchRows: number;
+  allMatch: boolean;
+  fingerprint: string;
+  durationMs: number;
+  verifiedAt: string;
+  aiTokensSpent: 0;
 }
 
 export interface ReactionsData {
@@ -287,6 +326,17 @@ export function useReactions(episodeId: string | null) {
     queryKey: ['reactions', episodeId],
     queryFn: () => j<ReactionsData>(`/api/episodes/${episodeId}/reactions`),
     enabled: Boolean(episodeId),
+  });
+}
+
+/** Determinism receipt — replay + byte-compare. Cached for the session; refetch() to re-verify. */
+export function useVerifyDeterminism(showId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['verify', showId],
+    queryFn: () => j<{ receipt: VerifyReceipt }>(`/api/shows/${showId}/verify`),
+    enabled: Boolean(showId) && enabled,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 }
 

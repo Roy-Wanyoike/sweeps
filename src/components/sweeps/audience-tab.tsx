@@ -3,14 +3,16 @@
 import { useMemo, useState } from 'react';
 import { ShowDetail, Beat as QueriesBeat, useEpisode, useMetrics, usePersonas, useReactions, useViewer } from '@/lib/queries';
 import { useSweeps } from '@/lib/store';
+import { ArchetypeDot, archetypeColor } from '@/lib/archetype-colors';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Brain, Eye, MessageSquare, Search, Star, UserRound, Users } from 'lucide-react';
+import { Brain, CheckCircle2, Eye, MessageSquare, Search, Star, UserRound, Users, XCircle } from 'lucide-react';
 import { RateDialog } from './rate-dialog';
+import { JourneySparkline } from './journey-sparkline';
 
 function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   const s = sentiment ?? 'NEUTRAL';
@@ -218,8 +220,11 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
                       selectedViewerId === v.id ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : ''
                     }`}
                   >
-                    <div className="truncate font-medium">{v.name}</div>
-                    <div className="truncate text-[10px] text-muted-foreground">{v.archetype}</div>
+                    <div className="flex items-center gap-1.5">
+                      <ArchetypeDot archetype={v.archetype} />
+                      <span className="truncate font-medium">{v.name}</span>
+                    </div>
+                    <div className="truncate pl-3 text-[10px] text-muted-foreground">{v.archetype}</div>
                   </button>
                 ))}
                 {filteredViewers.length === 0 && (
@@ -243,9 +248,25 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
             ) : (
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-semibold">{viewer.viewer.name}</div>
+                  <div className="flex items-center gap-1.5 text-sm font-semibold">
+                    <ArchetypeDot archetype={viewer.viewer.archetype} />
+                    {viewer.viewer.name}
+                  </div>
                   <Badge variant="outline" className="text-[10px]">{viewer.viewer.archetype}</Badge>
                 </div>
+                {viewer.viewer.persona && (
+                  <div className="flex flex-wrap gap-1 font-mono text-[10px] text-muted-foreground">
+                    <span className="rounded bg-muted px-1.5 py-0.5" title="Viewer bails when rolling satisfaction S stays under this for 2 beats">
+                      churn &lt; {viewer.viewer.persona.churnThreshold.toFixed(2)}
+                    </span>
+                    <span className="rounded bg-muted px-1.5 py-0.5" title="Baseline loyalty boosts initial satisfaction">
+                      loyalty {viewer.viewer.persona.loyalty.toFixed(2)}
+                    </span>
+                    <span className="rounded bg-muted px-1.5 py-0.5" title="Attention span in beats">
+                      attention {viewer.viewer.persona.attentionSpanBeats}b
+                    </span>
+                  </div>
+                )}
                 <ScrollArea className="max-h-56 pr-2">
                   <div className="grid gap-1.5">
                     {viewer.memories.map((m) => (
@@ -255,7 +276,10 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
                           <span className="whitespace-nowrap font-medium">R={m.retrievability.toFixed(2)}</span>
                         </div>
                         <div className="mt-1 h-1 w-full rounded bg-muted">
-                          <div className="h-1 rounded bg-primary" style={{ width: `${Math.max(3, m.retrievability * 100)}%` }} />
+                          <div
+                            className="h-1 rounded bg-primary transition-all duration-700 ease-out"
+                            style={{ width: `${Math.max(3, m.retrievability * 100)}%` }}
+                          />
                         </div>
                         <div className="mt-1 truncate text-muted-foreground">{m.content}</div>
                       </div>
@@ -263,13 +287,57 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
                     {viewer.memories.length === 0 && <p className="text-xs text-muted-foreground">No memories yet.</p>}
                   </div>
                 </ScrollArea>
-                <div className="rounded-md bg-muted/60 p-2 text-[11px] text-muted-foreground">
-                  <Eye className="mr-1 inline h-3 w-3" aria-hidden />
-                  Watch history:{' '}
-                  {viewer.screenings
-                    .map((s) => `Ep${s.episodeNumber}(${s.arm}) ${s.keepWatching ? '✓ finished' : `✗ dropped@${s.dropAtBeat}`}`)
-                    .join(' · ') || 'none yet'}
-                </div>
+                {viewer.screenings.length > 0 ? (
+                  <div className="border-t pt-2">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Eye className="h-3 w-3" aria-hidden /> Journey — S(t) vs churn line
+                    </div>
+                    <div className="grid gap-1.5">
+                      {viewer.screenings.map((s) => {
+                        const threshold = viewer.viewer.persona?.churnThreshold ?? 0.45;
+                        return (
+                          <div key={`${s.episodeNumber}-${s.arm}`} className="rounded-lg border p-2 transition-colors hover:border-primary/40">
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                              <Badge variant="outline" className="font-mono text-[10px]">
+                                Ep{s.episodeNumber} ({s.arm})
+                              </Badge>
+                              {s.keepWatching ? (
+                                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" aria-hidden /> finished
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400">
+                                  <XCircle className="mr-0.5 h-2.5 w-2.5" aria-hidden /> dropped @ beat {s.dropAtBeat}
+                                </Badge>
+                              )}
+                              <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                                sat {(s.satisfaction * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                            <div className="mt-1">
+                              <JourneySparkline
+                                curve={s.curve}
+                                threshold={threshold}
+                                dropAtBeat={s.dropAtBeat}
+                                finished={s.keepWatching}
+                                labelId={`journey-${s.episodeNumber}-${s.arm}`}
+                              />
+                            </div>
+                            {s.comment && (
+                              <p className="mt-1 border-l-2 border-primary/30 pl-2 text-xs italic leading-relaxed text-muted-foreground">
+                                “{s.comment}”
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-md bg-muted/60 p-2 text-[11px] text-muted-foreground">
+                    <Eye className="mr-1 inline h-3 w-3" aria-hidden /> No screenings yet — run an episode to record this viewer&apos;s journey.
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -284,9 +352,13 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
             <CardContent className="grid gap-1.5">
               {metricsQ.metrics.segments.slice(0, 6).map((s) => (
                 <div key={s.archetype} className="flex items-center gap-2 text-xs">
+                  <ArchetypeDot archetype={s.archetype} />
                   <span className="w-28 truncate">{s.archetype}</span>
                   <div className="h-1.5 flex-1 rounded bg-muted">
-                    <div className="h-1.5 rounded bg-primary" style={{ width: `${Math.max(2, s.keepRate * 100)}%` }} />
+                    <div
+                      className="h-1.5 rounded transition-all duration-700 ease-out"
+                      style={{ width: `${Math.max(2, s.keepRate * 100)}%`, backgroundColor: archetypeColor(s.archetype) }}
+                    />
                   </div>
                   <span className="w-10 text-right text-muted-foreground">{(s.keepRate * 100).toFixed(0)}%</span>
                 </div>

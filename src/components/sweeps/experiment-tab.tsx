@@ -1,18 +1,26 @@
 'use client';
 
-import { ExperimentsData, useExperiments } from '@/lib/queries';
+import { ExperimentsData, useExperiments, useVerifyDeterminism } from '@/lib/queries';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { ArrowDownRight, ArrowUpRight, FlaskConical, Minus, ReceiptText, Scale } from 'lucide-react';
+  ArrowDownRight,
+  ArrowUpRight,
+  BadgeCheck,
+  Copy,
+  FlaskConical,
+  Fingerprint,
+  Minus,
+  ReceiptText,
+  RefreshCw,
+  Scale,
+  ShieldAlert,
+} from 'lucide-react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { toast } from 'sonner';
 
 /** Micro-cost formatting: values are often a few tenths of a cent. */
 function formatMicroUsd(v: number): string {
@@ -26,6 +34,158 @@ function deltaTone(deltaPts: number): string {
   if (deltaPts <= -2) return 'text-rose-600 dark:text-rose-400 font-bold';
   if (deltaPts <= -0.5) return 'text-rose-600/90 dark:text-rose-400/90 font-medium';
   return 'text-muted-foreground';
+}
+
+/**
+ * Determinism receipt: replays every screening from the master seed and
+ * byte-compares the watch-event streams. The project's core proof, one click.
+ */
+function DeterminismCard({ showId }: { showId: string }) {
+  const { data, isFetching, refetch } = useVerifyDeterminism(showId);
+  const receipt = data?.receipt;
+  const verified = receipt?.episodes ?? [];
+
+  const copyFingerprint = () => {
+    if (!receipt) return;
+    navigator.clipboard
+      .writeText(receipt.fingerprint)
+      .then(() => toast.success('Fingerprint copied — same seed always regenerates it'))
+      .catch(() => toast.error('Clipboard unavailable'));
+  };
+
+  return (
+    <Card className="lg:col-span-3 border-dashed">
+      <CardHeader className="pb-2">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Fingerprint className="h-4 w-4 text-primary" aria-hidden /> Determinism receipt
+          </CardTitle>
+          <CardDescription>
+            Replay every screening from the master seed — no AI, no DB writes — then byte-compare each viewer&apos;s
+            watch-event stream against what actually aired
+          </CardDescription>
+        </div>
+        <div data-slot="card-action">
+          <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching} title="Re-run the verification">
+            <RefreshCw className={`mr-1 h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden />
+            {isFetching ? 'Verifying…' : 'Re-verify'}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!receipt && isFetching && (
+          <div className="grid gap-2" aria-busy="true" aria-label="Verifying determinism">
+            <Skeleton className="h-5 w-64" />
+            <Skeleton className="h-12 w-full" />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+            </div>
+          </div>
+        )}
+        {receipt && verified.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Nothing to verify yet — screen an episode and this receipt will fill with hashes.
+          </p>
+        )}
+        {receipt && verified.length > 0 && (
+          <div className="grid gap-3">
+            {receipt.allMatch ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+                <BadgeCheck className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <div>
+                  <div className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                    REPRODUCIBLE — {verified.filter((e) => e.match).length}/{verified.length} episodes byte-identical
+                  </div>
+                  <div className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                    Every stored screening was regenerated exactly from seed {receipt.seed}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3">
+                <ShieldAlert className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
+                <div>
+                  <div className="text-sm font-bold text-rose-700 dark:text-rose-400">
+                    DRIFT DETECTED — {receipt.mismatchRows} row{receipt.mismatchRows === 1 ? '' : 's'} differ
+                  </div>
+                  <div className="text-xs text-rose-700/80 dark:text-rose-400/80">
+                    Honest verification: this flags curve drift after re-compiles or panel regeneration. Re-screen affected episodes to restore.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <div className="rounded-lg border bg-muted/30 p-2.5">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">rows verified</div>
+                <div className="font-mono text-sm font-semibold">{receipt.checkedRows.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-2.5">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">viewers × episodes</div>
+                <div className="font-mono text-sm font-semibold">
+                  {receipt.viewerCount} × {verified.length}
+                </div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-2.5">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">replay time</div>
+                <div className="font-mono text-sm font-semibold">{receipt.durationMs} ms</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-2.5">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">AI tokens spent</div>
+                <div className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">0</div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-lg border">
+              <table className="w-full text-xs">
+                <tbody>
+                  {verified.map((e) => (
+                    <tr key={`${e.arm}-${e.epNumber}`} className="border-b last:border-b-0">
+                      <td className="whitespace-nowrap px-3 py-1.5 font-mono">
+                        Ep{e.epNumber} ({e.arm})
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {e.match ? (
+                          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                            <BadgeCheck className="mr-0.5 h-2.5 w-2.5" aria-hidden /> identical
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400">
+                            <ShieldAlert className="mr-0.5 h-2.5 w-2.5" aria-hidden /> {e.mismatchRows} differ
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono text-[10px] text-muted-foreground">
+                        {e.checkedRows} rows · {e.beatCount} beats
+                      </td>
+                      <td
+                        className="hidden px-3 py-1.5 text-right font-mono text-[10px] text-muted-foreground sm:table-cell"
+                        title={`computed ${e.computedHash} · stored ${e.storedHash}`}
+                      >
+                        sha {e.computedHash.slice(0, 10)}…
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <button
+              onClick={copyFingerprint}
+              className="group flex items-center gap-2 self-start rounded-lg border border-dashed bg-muted/30 px-3 py-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              title="Copy the full fingerprint"
+            >
+              <Copy className="h-3 w-3 opacity-50 group-hover:opacity-100" aria-hidden />
+              fingerprint {receipt.fingerprint.slice(0, 24)}…
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function ExperimentTab({ showId }: { showId: string }) {
@@ -283,6 +443,8 @@ export function ExperimentTab({ showId }: { showId: string }) {
           )}
         </CardContent>
       </Card>
+
+      <DeterminismCard showId={showId} />
     </div>
   );
 }
