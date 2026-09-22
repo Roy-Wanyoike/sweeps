@@ -63,6 +63,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   });
   if (!show) return NextResponse.json({ error: 'not found' }, { status: 404 });
   const panelCount = await db.viewer.count({ where: { showId: id } });
+  // show-level governance receipts — the pre-flight gate's and adoptions' audit trail
+  const governance = await db.jobLog.findMany({
+    where: { showId: id, step: { in: ['GATE', 'ADOPTION'] } },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  });
   const [bible, writer, render, audience, analytics, optimizer] = await Promise.all([
     stageSpend(id, 'BIBLE'),
     stageSpend(id, 'WRITER'),
@@ -87,6 +93,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       retentionScore: e.retentionScore,
       summary: e.summary,
       briefFingerprint: e.briefFingerprint,
+      adoptedFromFp: e.adoptedFromFp,
+    })),
+    governance: governance.map((g) => ({
+      id: g.id,
+      step: g.step,
+      status: g.status,
+      detail: g.detail,
+      createdAt: g.createdAt.toISOString(),
     })),
     panelCount,
     runner: runnerStatus(),

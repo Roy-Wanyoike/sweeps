@@ -327,10 +327,10 @@ function OpenLoopsCard({ episodes, arm }: { episodes: ArcEpisode[]; arm: string 
       <CardContent className="grid gap-2.5">
         {episodes.length === 0 && <p className="text-sm text-muted-foreground">No episodes yet.</p>}
         {episodes.map((ep) => (
-          <div key={ep.episodeId} className="rounded-lg border p-2.5">
-            <div className="flex items-center justify-between gap-2">
+          <div key={ep.episodeId} className="min-w-0 rounded-lg border p-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
               <span className="text-xs font-semibold">Ep{ep.number} opens with</span>
-              <span className="font-mono text-xs">
+              <span className="min-w-0 font-mono text-xs leading-snug">
                 <span className={ep.openLoops.alive > 0 ? 'font-bold text-emerald-600 dark:text-emerald-400' : 'font-bold text-rose-600 dark:text-rose-400'}>
                   {ep.openLoops.alive}
                 </span>
@@ -340,7 +340,7 @@ function OpenLoopsCard({ episodes, arm }: { episodes: ArcEpisode[]; arm: string 
             {ep.openLoops.threads.length > 0 && (
               <div className="mt-2 grid gap-1">
                 {ep.openLoops.threads.map((t) => (
-                  <div key={t.key} className="flex items-center gap-2 text-[11px]">
+                  <div key={t.key} className="flex min-w-0 items-center gap-2 text-[11px]">
                     <span
                       className={`h-1.5 w-1.5 shrink-0 rounded-full ${t.alive ? 'bg-emerald-500' : 'bg-stone-400'}`}
                       aria-hidden

@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { CreateShowDialog } from './create-show-dialog';
-import { Clapperboard, Link2, MonitorPlay, Moon, PlayCircle, Sun, X } from 'lucide-react';
+import { Clapperboard, ChevronDown, Link2, MonitorPlay, Moon, PlayCircle, ShieldCheck, Sun, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 
@@ -150,20 +151,72 @@ export function Header({ onShortcuts }: { onShortcuts?: () => void }) {
             </Badge>
           ) : (
             <>
-              <Button
-                size="sm"
-                onClick={() =>
-                  runDemo.mutate(undefined, {
-                    onSuccess: (r) => toast.success(`Demo queued: ${r.queued} episodes (control + treatment)`),
-                    onError: (e) => toast.error(e.message),
-                  })
-                }
-                disabled={!activeShowId || runDemo.isPending}
-                title="Run the full dual-arm demo (Shift+D)"
-              >
-                <PlayCircle className="mr-1 h-4 w-4" aria-hidden />
-                Run Full Demo
-              </Button>
+              <div className="flex items-center">
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    runDemo.mutate(undefined, {
+                      onSuccess: (r) => toast.success(`Demo queued: ${r.queued} episodes (control + treatment)`),
+                      onError: (e) => toast.error(e.message),
+                    })
+                  }
+                  disabled={!activeShowId || runDemo.isPending}
+                  title="Run the full dual-arm demo (Shift+D)"
+                  className="rounded-r-none"
+                >
+                  <PlayCircle className="mr-1 h-4 w-4" aria-hidden />
+                  Run Full Demo
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label="More demo modes"
+                      title="More demo modes"
+                      disabled={!activeShowId || runDemo.isPending}
+                      className="rounded-l-none border-l-0 px-1.5"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72">
+                    <DropdownMenuLabel className="text-[11px] text-muted-foreground">Demo modes</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        runDemo.mutate(undefined, {
+                          onSuccess: (r) => toast.success(`Standard demo queued: ${r.queued} episodes`),
+                          onError: (e) => toast.error(e.message),
+                        })
+                      }
+                    >
+                      <PlayCircle className="h-4 w-4" aria-hidden />
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium">Standard demo</div>
+                        <div className="text-[10.5px] leading-snug text-muted-foreground">Autonomous showcase — the pre-flight gate is bypassed with an honest WARN receipt.</div>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() =>
+                        runDemo.mutate({ gated: true }, {
+                          onSuccess: (r) =>
+                            toast.success('Governed demo queued — the gate decides live', {
+                              description: `${r.queued} episode(s) may run; the rest are held, auto-dry-run ($0), then admitted or denied. Watch the job log + GATE receipts.`,
+                            }),
+                          onError: (e) => toast.error(e.message),
+                        })
+                      }
+                    >
+                      <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium">Governed demo {show?.show.gateOnWhatIf === false && <span className="ml-1 font-mono text-[9px] text-amber-600 dark:text-amber-400">gate disarmed</span>}</div>
+                        <div className="text-[10.5px] leading-snug text-muted-foreground">The gate refuses ungoverned spend live: held episodes get a deterministic auto-dry-run, then PASS or DENY — every decision receipted.</div>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
               <CreateShowDialog />
             </>
           )}

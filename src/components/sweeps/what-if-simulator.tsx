@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import {
+  useExtendSeason,
+  useRunEpisode,
   useRunWhatIf,
   useSetGate,
   useShow,
@@ -28,6 +30,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CheckCircle2,
+  Clapperboard,
   ClipboardPaste,
   FlaskConical,
   FileDown,
@@ -145,10 +148,13 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
   const [planText, setPlanText] = useState('');
   const [result, setResult] = useState<WhatIfResult | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [adoptedFp, setAdoptedFp] = useState<string | null>(null);
   const { data: templateData, isLoading: templateLoading } = useWhatIfTemplate(showId, arm);
   const runWhatIf = useRunWhatIf(showId);
   const { data: showData } = useShow(showId);
   const setGate = useSetGate(showId);
+  const runEpisode = useRunEpisode(showId);
+  const extendSeason = useExtendSeason(showId);
   const readonly = useSweeps((s) => s.readonly);
   const gateArmed = showData?.show.gateOnWhatIf ?? false;
   const runs: WhatIfRunRow[] = templateData?.runs ?? [];
@@ -165,6 +171,7 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
     setPlanText(JSON.stringify(plan, null, 1));
     setDirty(false);
     setResult(null);
+    setAdoptedFp(null);
     toast.success(`Ep${template.templateFrom.episodeNumber} plan loaded`, {
       description: 'Edit any field, then run the dry-run — the panel re-watches it instantly.',
     });
@@ -180,6 +187,7 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
       const res = await runWhatIf.mutateAsync({ arm, plan: parsed });
       setResult(res.result);
       setDirty(false);
+      setAdoptedFp(null);
       toast.success(`Dry-run complete — ${res.result.simulation.viewers} viewers, $0.000 spent`, {
         description: `Grade: ${res.result.grade}. Nothing was written to the season.`,
       });
@@ -224,6 +232,24 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Dry-run report downloaded');
+  };
+
+  /** HUMAN-IN-THE-LOOP — adopt this passing dry-run's plan as the shooting script. */
+  const adoptPlan = async () => {
+    if (!result?.runId) return;
+    try {
+      if ((showData?.show.episodeCount ?? 0) < result.episodeNumber) {
+        await extendSeason.mutateAsync(result.episodeNumber);
+        toast.success(`Season extended to ${result.episodeNumber} episodes`);
+      }
+      await runEpisode.mutateAsync({ arm: result.arm, adoptRunId: result.runId });
+      setAdoptedFp(result.fingerprint);
+      toast.success(`Ep${result.episodeNumber} (arm ${result.arm}) greenlit from receipt ${result.fingerprint.slice(0, 8)}`, {
+        description: 'The simulated plan is now the shooting script — writer LLM skipped, $0 plan spend. Watch it compile, render and screen on the Episodes tab.',
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Adoption failed');
+    }
   };
 
   const curveRows: CurveRow[] = useMemo(
@@ -613,6 +639,46 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
                 })}
               </div>
             </div>
+
+            {/* HUMAN-IN-THE-LOOP — adopt this passing plan as the shooting script */}
+            {gateEligible && !stale && !readonly && result.runId && (
+              <div
+                className={`flex flex-wrap items-center gap-2.5 rounded-lg border px-3 py-2.5 ${
+                  adoptedFp === result.fingerprint
+                    ? 'border-emerald-500/50 bg-emerald-500/10'
+                    : 'border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent'
+                }`}
+                data-testid="adopt-cta"
+              >
+                <Clapperboard className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <div className="min-w-0 flex-1 text-[12px] leading-snug">
+                  <span className="font-semibold">Human-in-the-loop greenlight</span>{' '}
+                  <span className="text-muted-foreground">
+                    — shoot THIS exact plan: the writer LLM is skipped, the panel&apos;s dry-run verdict becomes the episode&apos;s
+                    commitment, and the compliance receipt stays verifiable.
+                  </span>
+                </div>
+                {adoptedFp === result.fingerprint ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> adopted · in production
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={adoptPlan}
+                    disabled={runEpisode.isPending || extendSeason.isPending}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:from-emerald-600 hover:to-teal-600"
+                  >
+                    {runEpisode.isPending || extendSeason.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <Clapperboard className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    Adopt &amp; greenlight Ep{result.episodeNumber}
+                  </Button>
+                )}
+              </div>
+            )}
 
             <p className="flex items-center gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
               <RotateCcw className="h-3 w-3 shrink-0" aria-hidden />

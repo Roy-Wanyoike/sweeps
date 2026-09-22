@@ -134,23 +134,24 @@ evidence → **40-viewer memory-aware** micro-screen (each viewer scores through
 - Misses are shown, not hidden — with an LLM writer the receipt becomes an honest quality gate, not decoration.
 - **Cohort lens**: re-write the same brief through the Skimmer’s eyes — their own churn curve picks the protect-beat. Same season, different writer’s room.
 - **Pre-flight gate (governance, optional)**: arm the gate and arm-B episodes are refused with 428 unless a passing dry-run (STRONG/PROMISING) exists for that exact episode against the *current* brief fingerprint. Every dry-run persists a receipt — the gate’s audit log is on the card. Ep5 (B) was written through the gate; the control arm is never gated.
+- **Adopt & greenlight (human-in-the-loop)**: a passing dry-run is a shootable plan. One click adopts the exact simulated plan as the shooting script — writer LLM skipped, $0 plan spend, brief snapshotted for compliance. **Ep6 (B): projected 71.5% → screened 71.5%** — the projection IS the commitment, because the dry-run and the screening run the same deterministic audience model.
+- **Governed demo (the refusal, live)**: `run-demo?gated=true` enforces the gate in front of the judge — `[BLOCK]` → auto dry-run ($0) → `[PASS]` admit or `[DENY]` refuse-the-spend — every decision receipted to the Studio tab’s **governance receipts** card.
 
 ---
 
 ## 08 · Dual-arm proof — one show, two fates
 
-> **“Measured honesty: the loop’s cost edge (−13%) held for a full season; retention landed within noise.”**
+> **“The gate held the episode until the plan was right — then the projection landed exactly.”**
 > `MEASURED — SEED 92067772 · PANEL 200`
 
 - **Arm A — writer-only control** (never sees the audience) vs **Arm B — full loop** (cliffs + viewer quotes + Thompson-sampled variants + the Writer’s Brief fed back).
-- Same seed · same show bible · same 200-viewer panel · 5 episodes per arm (season extended live).
-- Measured KM survival: B led at EP2–EP3 (70.0% / 69.5% vs A 65.0%); EP4–EP5 landed at 64.0–64.5% vs 65.0%. The dashboard reports the wash-out instead of hiding it.
+- Same seed · same show bible · same 200-viewer panel · 6 episodes per arm (season extended live).
+- Measured KM survival: B led at EP2–EP3 (70.0% / 69.5% vs A 65.0%); EP4–EP5 washed out (64.0–64.5% vs 65.0%) — reported honestly. **EP6: the gate held arm B until an iterated plan graded PROMISING (+7.0 projected), the plan was adopted, and it screened at 71.5% — exactly the projection — while arm A (unguided fallback plan) landed at 65.0%.**
 
 | Metric | Arm A | Arm B |
 |---|---|---|
-| Retention EP1→EP5 | −6.5 pts | −7.0 pts (**lift −0.5 pt — honest noise**) |
-| Cost / retained viewer | $0.0016 | **$0.0014** (−13%, whole season) |
-| Avg spend / episode | $0.217 | **$0.193** |
+| Retention EP1→EP6 | −6.5 pts | **0.0 pts** (**lift +6.5 pts**) |
+| EP6 (governance era) | 65.0% (unguided plan) | **71.5% (adopted, gate-cleared, writer skipped)** |
 | Panel | 200 | 200 |
 
 ---
@@ -162,11 +163,11 @@ evidence → **40-viewer memory-aware** micro-screen (each viewer scores through
 | | Value |
 |---|---|
 | Compile-gate rejects — `fixtures/bad-beat.json` | **$0.00 spent · ~$0.72 saved** |
-| Per-episode spend (stage-capped) | A $0.217 · B $0.193 / episode — run total $2.10 of $5.00 |
-| **Cost per retained viewer** | **Arm A $0.0016 · Arm B $0.0014** |
-| Retention Δ EP1→EP5 | A −6.5 pts · B −7.0 pts · **lift −0.5 pt (honest)** |
-| Panel throughput | 200 personas × 10 episodes |
-| Reproducibility | same seed → identical curves (receipt: 10/10 episodes byte-identical) |
+| Per-episode spend (stage-capped) | run total $2.30 of $5.00 — cheapest: Ep5 B $0.120 at 64.5% |
+| Ep6 (B) plan spend | **$0.000 writer — adopted from a passing dry-run receipt** |
+| Retention Δ EP1→EP6 | A −6.5 pts · B 0.0 pts · **lift +6.5 pts (governance era)** |
+| Panel throughput | 200 personas × 12 episodes |
+| Reproducibility | same seed → identical curves (receipt: 12/12 episodes, 2,400 rows byte-identical, ~136 ms) |
 
 - **200** — panel size, persona-agents: 12 archetypes × seeded jitter, decaying memory + churn threshold each.
 - **0×** — `Math.random` in sim paths: `mulberry32(show.seed, viewer.seed, ep, beat)` — same seed replays byte-identical curves.
@@ -200,7 +201,7 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 
 ---
 
-## 12 · Demo flow — three minutes, eight beats
+## 12 · Demo flow — three minutes, nine beats
 
 | Time | Beat | What the judge sees |
 |---|---|---|
@@ -208,10 +209,11 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 | 0:20 | **SETUP** | One-line premise → show bible, 12 archetypes and the 200-viewer panel materialize. |
 | 0:50 | **REVEAL** | The Gate: bad fixture rejected — 2 ERRORs + 1 WARN, $0.00 spent; repair loop counts down live. |
 | 1:20 | **TWIST** | 200 personas screen Ep1: retention curve draws, comment wall fills, memory inspector decays. |
-| 1:50 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying, hook payoff graded — then the **writer’s brief** for the next episode. |
-| 2:20 | **PAYOFF** | **“Write Ep5 from this brief”** → pre-flight gate checks the passing dry-run receipt → writer honors the brief → **LOOP CLOSED · 3/3 HONORED** receipt; season extended live. Determinism receipt re-verifies 10 episodes byte-for-byte, signed. |
-| 2:45 | **WHAT-IF** | The judge’s turn: paste any plan into the **what-if simulator** — 200 personas dry-run it in ~200 ms, grade drops, check the contracts — **$0.000 spent, nothing written**. Arm the **pre-flight gate** and no arm-B episode queues without a passing receipt. |
-| 3:00 | **CLIFFHANGER** | Thompson picks the variant (memory-aware micro-screen); dual-arm table lands (honest verdict, cost edge −13%); close on “measure attention, not output.” |
+| 1:45 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying, hook payoff graded — then the **writer’s brief** for the next episode. |
+| 2:10 | **WHAT-IF** | The judge’s turn: paste any plan into the **what-if simulator** — 200 personas dry-run it in ~200 ms, grade drops, check the contracts — **$0.000 spent, nothing written**. Iterate until it grades PROMISING. |
+| 2:35 | **PAYOFF** | **Adopt & greenlight** → the gate-eligible receipt becomes the shooting script: writer skipped, `$0` plan spend, `adopted <fp8>` badge rides the pipeline → **the episode screens at exactly the projected keep rate** (Ep6: projected 71.5% → screened 71.5%). Compliance receipt: **3/3 HONORED**. |
+| 2:55 | **GOVERNED** | Run Full Demo ▾ → **Governed demo**: the gate refuses ungoverned spend live — `[BLOCK]` → auto dry-run ($0) → `[PASS]` admit or `[DENY]` refuse — every decision receipted to the Studio tab’s **governance receipts** card. |
+| 3:10 | **CLIFFHANGER** | Dual-arm table lands: wash-out reported honestly at EP5, then the governance-era flip (**lift +6.5 pts**); determinism receipt re-verifies 12 episodes byte-for-byte; close on “measure attention, not output.” |
 
 Single screen recording, one take — ends on the live dashboard, DUAL mode running.
 

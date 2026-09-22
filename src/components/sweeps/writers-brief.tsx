@@ -269,7 +269,7 @@ export function WritersBrief({ showId, arm }: { showId: string; arm: string }) {
         toast.success(`Season extended to ${brief.nextEpisodeNumber} episodes`, { description: 'The writers-room keeps its window open.' });
         setExtending(false);
       }
-      await runEpisode.mutateAsync(brief.arm);
+      await runEpisode.mutateAsync({ arm: brief.arm });
       toast.success(`Ep${brief.nextEpisodeNumber} (${brief.arm}) queued`, {
         description: `The writer receives this brief as prompt input — compliance is verified when it lands.`,
       });
@@ -309,7 +309,7 @@ export function WritersBrief({ showId, arm }: { showId: string; arm: string }) {
           </CardDescription>
         </div>
         <div data-slot="card-action">
-          <div className="flex items-center gap-1.5">
+          <div className="flex max-w-[46vw] flex-wrap items-center justify-end gap-1.5 sm:max-w-none">
             <button
               onClick={copyBrief}
               className="hidden items-center gap-1 rounded-md border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:inline-flex"

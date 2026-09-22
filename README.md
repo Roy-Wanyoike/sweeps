@@ -158,6 +158,22 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
   gate's audit log on the what-if card; the write response echoes the receipt that opened it. The
   control arm is never gated (it writes blind by experimental design), and the autonomous full-demo
   run bypasses the gate with an honest WARN in the job log.
+- **Human-in-the-loop adoption ("Adopt & greenlight").** A passing dry-run is not just a receipt —
+  it is a shootable plan. One click on the what-if card greenlights the episode FROM that exact
+  dry-run (`POST /api/shows/:id/episodes` with `adoptRunId`): the simulated plan becomes the
+  shooting script, the writer LLM is skipped entirely ($0 plan spend), the brief the plan was
+  graded against is snapshotted for the compliance receipt, and the episode carries an
+  `adopted <fp8>` badge through compile → render → screen. Because the dry-run and the screening
+  run the same deterministic audience model, the projection IS the commitment: Ep6 (B) projected
+  71.5% and screened at 71.5%. A rejected adoption answers with a precise **409** (grade, cohort
+  lens, or stale brief fingerprint).
+- **Governed demo (the refusal, live).** `POST /api/shows/:id/run-demo?gated=true` (header → Run
+  Full Demo ▾ → **Governed demo**) enforces the gate in front of the judge: a gate-required
+  episode without a receipt is **held** (`[BLOCK]`), the machine auto-runs a deterministic dry-run
+  of the arm's last screened plan (`[DRYRUN]`, $0), then either admits it (`[PASS]`) or refuses
+  the spend entirely (`[DENY]` — the episode is never created). Every decision lands in an
+  append-only **governance receipts** card on the Studio tab (GATE/ADOPTION log, color-coded,
+  newest first), next to the budget ledger.
 - **Per-viewer journey timeline.** Select any viewer in the Memory inspector to see their episode-by-
   episode satisfaction trace S(t) as an SVG sparkline with their personal churn threshold (dashed
   amber), a drop marker where they bailed, amber pips where a memory was recalled, and their in-voice
@@ -185,8 +201,8 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
 
 ## Measured numbers (from the last full run)
 
-Final verified run — "Neon Countdown" (seed 92067772, panel 200, 5 episodes × 2 arms, paired
-premiere, budget $5.00, total spend $2.10):
+Final verified run — "Neon Countdown" (seed 92067772, panel 200, 6 episodes × 2 arms, paired
+premiere, budget $5.00, total spend $2.30):
 
 | Metric | Arm A — control | Arm B — full loop |
 |---|---|---|
@@ -195,27 +211,30 @@ premiere, budget $5.00, total spend $2.10):
 | Ep3 | 65.0% | **69.5%** |
 | Ep4 (first brief-fed episode) | 65.0% | 64.0% |
 | Ep5 (written through the pre-flight gate; memory-aware optimizer era) | 65.0% | 64.5% |
-| Retention Δ EP1→EP5 | −6.5 pts | −7.0 pts |
-| **Lift (B − A)** | | **−0.5 pt** (single-episode noise; honest) |
-| Avg spend / episode | $0.217 | **$0.193** |
-| Cost per retained viewer | $0.0016 | **$0.0014** (−13%) |
+| Ep6 (governance era — see below) | 65.0% | **71.5%** |
+| Retention Δ EP1→EP6 | −6.5 pts | **0.0 pts** |
+| **Lift (B − A)** | | **+6.5 pts** |
 
-The run is reported exactly as measured: over 5 episodes the treatment arm's retention advantage
-washed out to a coin flip while its **cost-per-retained-viewer edge (−13%) persisted across the
-whole season** (Ep5 B spent $0.120 for 64.5% — the cheapest episode of the run). Ep4 and Ep5 (B)
-are written *from* the Writer's Brief — Ep5 was queued through the armed pre-flight gate with
-dry-run fp `89a1c8d4…` (PROMISING, 65.0% keep, +1.0 pts vs Ep4 baseline) and its compliance receipt
-verified; the loop closure is proven, but retention deltas of ±1 pt per episode are noise, and the
-dashboard says so instead of hiding it. Every number above is reproducible from the seed; the
-determinism receipt re-verifies all 10 episodes (2,000 viewer-screenings) byte-for-byte in ~620 ms.
+The run is reported exactly as measured, including the part most demos would hide: for five
+episodes the treatment arm's retention advantage washed out to a coin flip (−0.5 pt at EP5), and
+the dashboard said so instead of hiding it. Then the governance machinery paid for itself. Ep6 is
+a clean comparison of two un-LLM'd plans — arm A's writer call was rate-limited, so its
+deterministic fallback planner wrote blind (spend $0.0002), while arm B's episode was **held by
+the armed pre-flight gate** until a what-if dry-run of an iterated plan graded PROMISING
+(+7.0 pts projected, fp `ff182949…`), was **adopted** as the shooting script (writer skipped, $0
+plan spend), and screened at **71.5% — exactly the projection**, because the dry-run and the
+screening run the same deterministic audience model. The adopted plan recovered arm B to premiere
+level and flipped the season verdict from −0.5 to **+6.5 pts**, with the whole decision chain
+(BLOCK → dry-run receipt → adoption → compliance 3/3) visible in the job logs and the Studio
+tab's governance receipts.
 
 - Compile gate: fixture (`fixtures/bad-beat.json`) fails C2-PRESENCE + C4-PROP with 2 ERRORs and
   1 WARN — **$0.00 generation spend** (vs ~$0.72 estimated render cost saved); production plans
   auto-repair in bounded deterministic passes ($0) + ≤1 LLM repair.
-- Panel: 200 viewers × 10 episodes (5 per arm); hook payoff at every hand-off is a graded ~35%
+- Panel: 200 viewers × 12 episodes (6 per arm); hook payoff at every hand-off is a graded ~35%
   (loyalty-coupled recall — the loyal third of the panel); same-seed re-screen replays
   byte-identical curves (verified).
-- Stage ledger: RENDER $2.04 · WRITER $0.041 · OPTIMIZER $0.010 · AUDIENCE $0.005.
+- Stage ledger: RENDER $2.243 · WRITER $0.043 · OPTIMIZER $0.010 · AUDIENCE $0.005.
 - Full receipts: **Experiment tab** / `GET /api/shows/:id/experiments` (per-arm deltas, lift,
   Thompson evidence with n=40 memory-aware micro-screening — keep and hook-recall counts per
   variant — viewer quotes).

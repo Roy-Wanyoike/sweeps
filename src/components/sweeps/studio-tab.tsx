@@ -9,8 +9,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MapPin, Package, Users } from 'lucide-react';
+import { MapPin, Package, ScrollText, ShieldCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
+
+/** status → color for governance receipts (same coding as the episode job log) */
+function govStatusStyle(status: string): string {
+  if (status === 'DENY' || status === 'BLOCK') return 'font-bold text-rose-600 dark:text-rose-400';
+  if (status === 'PASS') return 'font-bold text-emerald-600 dark:text-emerald-400';
+  if (status === 'DRYRUN') return 'font-bold text-teal-600 dark:text-teal-400';
+  if (status === 'WARN') return 'font-bold text-amber-600 dark:text-amber-400';
+  if (status === 'OK') return 'font-bold text-emerald-600 dark:text-emerald-400';
+  return 'font-bold text-primary';
+}
 
 const STAGE_LABELS: Record<string, string> = {
   BIBLE: 'Bible',
@@ -132,7 +142,7 @@ export function StudioTab({ detail }: { detail: ShowDetail }) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Budget ledger</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">Budget ledger</CardTitle>
             <CardDescription>
               ${budget.totalUsd.toFixed(3)} of ${budget.budgetUsd.toFixed(2)} — stage caps enforced, degradation automatic
             </CardDescription>
@@ -153,6 +163,47 @@ export function StudioTab({ detail }: { detail: ShowDetail }) {
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden border-emerald-500/20">
+          <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-transparent" aria-hidden />
+          <CardHeader className="pb-2">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+              <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden /> Governance receipts
+              {detail.show.gateOnWhatIf ? (
+                <Badge variant="outline" className="border-emerald-500/40 text-[9px] text-emerald-700 dark:text-emerald-300">
+                  gate armed
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[9px] text-muted-foreground">gate disarmed</Badge>
+              )}
+            </CardTitle>
+            <CardDescription>
+              The pre-flight gate&apos;s and every plan adoption&apos;s decisions — an append-only audit trail of when spend was allowed, held, or refused.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {detail.governance.length > 0 ? (
+              <div className="grid max-h-56 gap-1.5 overflow-y-auto scrollbar-thin">
+                {detail.governance.map((g) => (
+                  <div key={g.id} className="rounded-md border bg-background/60 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed">
+                    <span className={govStatusStyle(g.status)}>[{g.status}]</span>{' '}
+                    <span className="text-muted-foreground/70">{g.step}</span> {g.detail?.slice(0, 160)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                No governance decisions yet. Arm the pre-flight gate on the Arc tab (or run the governed demo) and every
+                hold, dry-run, admission and refusal will be receipted here.
+              </p>
+            )}
+            {detail.governance.length > 0 && (
+              <p className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
+                <ScrollText className="h-3 w-3 shrink-0" aria-hidden /> newest first · append-only · never rewritten
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

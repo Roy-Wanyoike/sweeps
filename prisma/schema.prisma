@@ -67,6 +67,7 @@ model Episode {
   summary        String?
   briefJson      String? // JSON WriterBrief snapshot — the exact brief the writer saw
   briefFingerprint String? // sha256 of the applied brief (null = written blind)
+  adoptedFromFp  String?  // sha256 of the WhatIfRun this plan was adopted from (null = writer-generated)
   repairLoops    Int        @default(0)
   spendUsd       Float      @default(0)
   retentionScore Float?

@@ -67,6 +67,7 @@ export interface EpisodeRow {
   retentionScore: number | null;
   summary: string | null;
   briefFingerprint?: string | null;
+  adoptedFromFp?: string | null;
 }
 
 export interface ShowDetail {
@@ -74,6 +75,8 @@ export interface ShowDetail {
   characters: CharacterRow[];
   entities: EntityRow[];
   episodes: EpisodeRow[];
+  /** show-level governance receipts (GATE + ADOPTION job logs), newest first */
+  governance: JobLogRow[];
   panelCount: number;
   runner: { queued: number; running: boolean; current?: unknown; lastError?: string };
   budget: { budgetUsd: number; byStage: Record<string, number>; totalUsd: number };
@@ -349,6 +352,8 @@ export interface WhatIfResult {
   showId: string;
   arm: string;
   episodeNumber: number;
+  /** persisted WhatIfRun receipt id — the "adopt & greenlight" handle */
+  runId: string;
   beatCount: number;
   totalDurationSec: number;
   briefFingerprint: string;
@@ -601,9 +606,9 @@ export function useCreateShow() {
 export function useRunDemo(showId: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const { url, init } = post(`/api/shows/${showId}/run-demo`);
-      return j<{ queued: number }>(url, init);
+    mutationFn: async (opts?: { gated?: boolean }) => {
+      const { url, init } = post(`/api/shows/${showId}/run-demo${opts?.gated ? '?gated=true' : ''}`);
+      return j<{ queued: number; gated?: boolean }>(url, init);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['show', showId] });
@@ -614,9 +619,9 @@ export function useRunDemo(showId: string | null) {
 export function useRunEpisode(showId: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (arm: string) => {
-      const { url, init } = post(`/api/shows/${showId}/episodes`, { arm });
-      return j<{ episodeId: string }>(url, init);
+    mutationFn: async (args: { arm: string; adoptRunId?: string }) => {
+      const { url, init } = post(`/api/shows/${showId}/episodes`, args);
+      return j<{ episodeId: string; adopted?: boolean; gate?: { fingerprint: string; grade: string } | null }>(url, init);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['show', showId] }),
   });

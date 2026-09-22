@@ -9,6 +9,7 @@ import { ensurePanel, simulateScreening } from '@/services/audience';
 import { computeMetrics } from '@/services/analytics';
 import { computeWriterBrief } from '@/services/arc';
 import { prepareTreatmentDirectives } from '@/services/optimizer';
+import { checkWhatIfGate, getAdoptableRun, runWhatIf } from '@/services/what-if';
 
 /**
  * Pipeline state machine + in-process job queue.
@@ -233,7 +234,40 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
     // treatment arm: feed measured analytics + optimizer directives
     let directives: Awaited<ReturnType<typeof prepareTreatmentDirectives>> = [];
     let briefApplied = false;
-    if (!reused) {
+
+    // HUMAN-IN-THE-LOOP ADOPTION — the plan was already written and graded by a
+    // passing what-if dry-run (the "adopt & greenlight" flow): skip the writer
+    // LLM entirely, snapshot the brief the plan was graded against, and shoot
+    // the exact simulated beats. Writer spend for this episode: $0.000.
+    let adoptedFrom: string | null = null;
+    if (!reused && episode.adoptedFromFp && !hasPlan) {
+      const run = await db.whatIfRun.findFirst({ where: { fingerprint: episode.adoptedFromFp, showId: show.id } });
+      const stored = run ? jparse<Beat[] | { beats: Beat[] } | null>(run.planJson, null) : null;
+      const adoptedBeats = Array.isArray(stored) ? stored : (stored?.beats ?? []);
+      if (adoptedBeats.length > 0) {
+        beats = adoptedBeats;
+        summary =
+          `Adopted from pre-flight dry-run ${run!.fingerprint.slice(0, 8)} (grade ${run!.grade}, ` +
+          `${(run!.keepRate * 100).toFixed(1)}% projected keep): ` +
+          adoptedBeats.map((b) => b.title).join(' · ').slice(0, 400);
+        report = null;
+        loops = 0;
+        adoptedFrom = run!.fingerprint;
+        // the plan was graded against exactly this brief — snapshot it so the
+        // compliance receipt stays verifiable byte-honestly
+        try {
+          const brief = await computeWriterBrief(show.id, episode.arm);
+          if (brief && brief.nextEpisodeNumber === episode.number && brief.fingerprint === run!.briefFp) {
+            ctx.brief = brief;
+            briefApplied = true;
+          }
+        } catch {
+          // brief snapshot is an enhancement, never a pipeline dependency
+        }
+      }
+    }
+
+    if (!reused && adoptedFrom === null) {
       if (episode.arm === 'B' && episode.number > 1) {
         const prevMetrics = await computeMetrics(priorEps[priorEps.length - 1]?.id ?? '');
         if (prevMetrics && prevMetrics.cliffs.length > 0) {
@@ -288,6 +322,8 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
       directives: directives.length,
       briefApplied,
       briefFp: briefApplied ? ctx.brief?.fingerprint.slice(0, 8) : undefined,
+      adoptedFrom: adoptedFrom ? adoptedFrom.slice(0, 8) : undefined,
+      writerSpend: adoptedFrom ? 0 : undefined,
       reusedFrom: reused ? (episode.arm === 'A' ? 'B' : 'A') : undefined,
     });
   }
@@ -375,15 +411,25 @@ export async function runEpisodePipeline(episodeId: string): Promise<void> {
   }
 }
 
-/** Queue the full dual-arm demo: ep1A, ep1B, ep2A, ep2B, ... */
-export async function enqueueDemo(showId: string): Promise<number> {
+/**
+ * Queue the full dual-arm demo: ep1A, ep1B, ep2A, ep2B, ...
+ *
+ * Standard mode (gated=false): the autonomous showcase — an armed pre-flight
+ * gate is bypassed with an honest GATE/WARN receipt.
+ *
+ * Governed mode (gated=true): the gate is enforced LIVE. Every gate-required
+ * episode either presents a passing dry-run receipt, or the demo holds it,
+ * auto-runs a deterministic dry-run ($0), and re-checks: PASS → the episode is
+ * admitted with a GATE/PASS receipt; still failing → GATE/DENY and the
+ * episode is skipped — no render dollars move ungoverned. The full refusal
+ * story plays out in the job log, judge-visible.
+ */
+export async function enqueueDemo(showId: string, opts?: { gated?: boolean }): Promise<number> {
   const show = await db.show.findUnique({ where: { id: showId } });
   if (!show) return 0;
   await ensurePanel(showId);
-  // the full demo is the autonomous showcase: if the pre-flight gate is armed,
-  // bypass it but leave an honest WARN receipt so the audit log explains why
-  // arm-B episodes were written without a passing dry-run.
-  if (show.gateOnWhatIf) {
+  const gated = opts?.gated ?? false;
+  if (show.gateOnWhatIf && !gated) {
     await db.jobLog
       .create({
         data: {
@@ -397,12 +443,81 @@ export async function enqueueDemo(showId: string): Promise<number> {
   }
   const jobs: Job[] = [];
   const arms = show.mode === 'DUAL' ? ['A', 'B'] : ['A'];
+  let held = 0;
+  let admitted = 0;
   for (let n = 1; n <= show.episodeCount; n++) {
     for (const arm of arms) {
       const existing = await db.episode.findUnique({
         where: { showId_number_arm: { showId, number: n, arm } },
       });
       if (existing && existing.status === 'DONE') continue;
+      // the gate only guards fresh WRITES — an episode resuming from persisted
+      // artifacts (PIPELINE_ERROR mid-pipeline) already passed its write stage
+      const resumesWithPlan = Boolean(existing && existing.status === 'PIPELINE_ERROR' && existing.beatPlan);
+      if (gated && !resumesWithPlan) {
+        const gate = await checkWhatIfGate(showId, arm, n);
+        if (gate.required && !gate.pass) {
+          await db.jobLog
+            .create({
+              data: {
+                showId,
+                step: 'GATE',
+                status: 'BLOCK',
+                detail: `Ep${n} (arm ${arm}) held — no passing dry-run${gate.latest ? ` (latest graded ${gate.latest.grade})` : ''}; auto-running a deterministic dry-run before spending`,
+              },
+            })
+            .catch(() => undefined);
+          // deterministic auto-dry-run: the last screened episode's plan is the
+          // honest template — the machine grades it in front of the judge, $0
+          const lastScreened = await db.episode.findFirst({
+            where: { showId, arm, status: { in: ['DONE', 'ANALYZING', 'SCREENING', 'RENDER_PARTIAL'] } },
+            orderBy: { number: 'desc' },
+          });
+          const stored = lastScreened ? jparse<Beat[] | { beats: Beat[] } | null>(lastScreened.beatPlan, null) : null;
+          const templateBeats = Array.isArray(stored) ? stored : (stored?.beats ?? []);
+          if (templateBeats.length > 0) {
+            const dry = await runWhatIf(showId, arm, { beats: templateBeats });
+            if ('result' in dry) {
+              await db.jobLog
+                .create({
+                  data: {
+                    showId,
+                    step: 'GATE',
+                    status: 'DRYRUN',
+                    detail: `auto dry-run for Ep${n} (arm ${arm}): ${dry.result.grade} · ${(dry.result.simulation.keepRate * 100).toFixed(1)}% keep · ${dry.result.delta.keepRatePts > 0 ? '+' : ''}${dry.result.delta.keepRatePts} pts vs baseline · fp ${dry.result.fingerprint.slice(0, 8)} · $0.000 spent`,
+                  },
+                })
+                .catch(() => undefined);
+            }
+          }
+          const recheck = await checkWhatIfGate(showId, arm, n);
+          if (recheck.required && !recheck.pass) {
+            held += 1;
+            await db.jobLog
+              .create({
+                data: {
+                  showId,
+                  step: 'GATE',
+                  status: 'DENY',
+                  detail: `Ep${n} (arm ${arm}) DENIED — the auto dry-run did not clear the bar; edit the plan on the Arc tab until it grades STRONG/PROMISING, then re-run the governed demo`,
+                },
+              })
+              .catch(() => undefined);
+            continue; // the episode is never created — nothing to clean up
+          }
+          admitted += 1;
+          await db.jobLog
+            .create({
+              data: {
+                showId,
+                step: 'GATE',
+                status: 'PASS',
+                detail: `Ep${n} (arm ${arm}) admitted — receipt fp ${recheck.pass!.fingerprint.slice(0, 8)} (grade ${recheck.pass!.grade}) opened the gate`,
+              },
+            })
+            .catch(() => undefined);
+        }
+      }
       if (existing && existing.status === 'COMPILE_FAILED') {
         // gate rejection: wipe artifacts so the writer produces a FRESH plan,
         // then run the full pipeline again (bounded by the same gates).
@@ -428,23 +543,64 @@ export async function enqueueDemo(showId: string): Promise<number> {
   }
   const missingStills = await db.character.count({ where: { showId, refImage: null } });
   if (missingStills > 0) jobs.unshift({ kind: 'bible', showId });
+  if (gated && (held > 0 || admitted > 0)) {
+    await db.jobLog
+      .create({
+        data: {
+          showId,
+          step: 'GATE',
+          status: held > 0 ? 'WARN' : 'OK',
+          detail: `governed demo: ${admitted} episode${admitted === 1 ? '' : 's'} admitted through the gate, ${held} held back — every decision is receipted above`,
+        },
+      })
+      .catch(() => undefined);
+  }
   enqueue(jobs);
   return jobs.length;
 }
 
-/** Queue a single next episode for one arm. */
-export async function enqueueNextEpisode(showId: string, arm: string): Promise<string | null> {
+/**
+ * Queue a single next episode for one arm.
+ * adoptRunId: greenlight this episode FROM a passing what-if dry-run — the
+ * simulated plan becomes the shooting script and the writer LLM is skipped.
+ */
+export async function enqueueNextEpisode(
+  showId: string,
+  arm: string,
+  opts?: { adoptRunId?: string }
+): Promise<{ id: string } | { error: string; status: number } | null> {
   const show = await db.show.findUnique({ where: { id: showId } });
   if (!show) return null;
   const count = await db.episode.count({ where: { showId, arm } });
   if (count >= show.episodeCount) return null;
-  const ep = await db.episode.create({ data: { showId, number: count + 1, arm, status: 'DRAFT' } });
+  let adoptedFromFp: string | null = null;
+  if (opts?.adoptRunId) {
+    const adoptable = await getAdoptableRun(showId, arm, count + 1, opts.adoptRunId);
+    if (!adoptable.ok) return { error: adoptable.reason, status: 409 };
+    adoptedFromFp = adoptable.run.fingerprint;
+  }
+  const ep = await db.episode.create({
+    data: { showId, number: count + 1, arm, status: 'DRAFT', adoptedFromFp },
+  });
+  if (adoptedFromFp) {
+    await db.jobLog
+      .create({
+        data: {
+          episodeId: ep.id,
+          showId,
+          step: 'ADOPTION',
+          status: 'OK',
+          detail: `Ep${count + 1} (arm ${arm}) greenlit from dry-run receipt ${adoptedFromFp.slice(0, 8)} — the simulated plan becomes the shooting script (writer LLM skipped, $0 plan spend)`,
+        },
+      })
+      .catch(() => undefined);
+  }
   const jobs: Job[] = [];
   const missingStills = await db.character.count({ where: { showId, refImage: null } });
   if (missingStills > 0) jobs.push({ kind: 'bible', showId });
   jobs.push({ kind: 'episode', episodeId: ep.id });
   enqueue(jobs);
-  return ep.id;
+  return { id: ep.id };
 }
 
 /** Create a show with generated bible + panel (bible LLM synchronous, stills queued). */

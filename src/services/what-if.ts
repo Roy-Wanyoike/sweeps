@@ -64,6 +64,8 @@ export interface WhatIfResult {
   showId: string;
   arm: string;
   episodeNumber: number;
+  /** the persisted WhatIfRun receipt id — the handle "adopt & greenlight" uses */
+  runId: string;
   beatCount: number;
   totalDurationSec: number;
   briefFingerprint: string;
@@ -299,6 +301,7 @@ export async function runWhatIf(
     showId,
     arm: chosenArm,
     episodeNumber: epNumber,
+    runId: '',
     beatCount: beats.length,
     totalDurationSec: beats.reduce((a, b) => a + b.durationSec, 0),
     briefFingerprint: brief.fingerprint,
@@ -321,7 +324,7 @@ export async function runWhatIf(
 
   // persist the dry-run receipt — auditable input for the pre-flight gate
   // (zero AI, tiny row; the full WhatIfResult stays in the API response)
-  await db.whatIfRun
+  const saved = await db.whatIfRun
     .create({
       data: {
         showId,
@@ -338,6 +341,9 @@ export async function runWhatIf(
       },
     })
     .catch(() => undefined);
+
+  // the receipt id flows back so the UI can adopt THIS exact simulated plan
+  result.runId = saved?.id ?? '';
 
   return { result };
 }
@@ -382,6 +388,35 @@ export async function listWhatIfRuns(showId: string, arm?: string, take = 12): P
     take,
   });
   return runs.map(rowToWhatIfRun);
+}
+
+/**
+ * Adoptability check for a specific dry-run receipt: it can greenlight an
+ * episode only when it is a passing, whole-panel run for the CURRENT brief
+ * targeting exactly the next unwritten episode of its arm. Same bar as the
+ * pre-flight gate — one shared definition of "this plan is safe to shoot".
+ */
+export async function getAdoptableRun(
+  showId: string,
+  arm: string,
+  epNumber: number,
+  runId: string
+): Promise<{ ok: true; run: WhatIfRunRow; plan: Beat[] } | { ok: false; reason: string }> {
+  const run = await db.whatIfRun.findFirst({ where: { id: runId, showId, arm, epNumber } });
+  if (!run) return { ok: false, reason: 'dry-run receipt not found for this (show, arm, episode)' };
+  if (!GATE_PASSING.has(run.grade)) return { ok: false, reason: `receipt graded ${run.grade} — only STRONG or PROMISING plans can be adopted` };
+  if (run.cohort !== null) return { ok: false, reason: 'receipt was graded through a cohort lens — re-run on the whole panel to adopt' };
+  const brief = await computeWriterBrief(showId, arm);
+  if (!brief || brief.nextEpisodeNumber !== epNumber) {
+    return { ok: false, reason: `brief has moved on — receipt targets Ep${run.epNumber} but the current brief is for Ep${brief?.nextEpisodeNumber ?? '?'}` };
+  }
+  if (run.briefFp !== brief.fingerprint) {
+    return { ok: false, reason: 'receipt was graded against an older brief (fingerprint mismatch) — re-run the dry-run' };
+  }
+  const plan = jparse<Beat[] | { beats: Beat[] } | null>(run.planJson, null);
+  const beats = Array.isArray(plan) ? plan : (plan?.beats ?? []);
+  if (beats.length === 0) return { ok: false, reason: 'receipt has no stored plan' };
+  return { ok: true, run: rowToWhatIfRun(run), plan: beats };
 }
 
 /**

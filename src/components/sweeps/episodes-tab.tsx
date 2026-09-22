@@ -82,13 +82,16 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
   const busy = detail.runner.running || armEpisodes.some((e) => !['DONE', 'COMPILE_FAILED', 'DRAFT', 'PIPELINE_ERROR'].includes(e.status));
 
   const runNext = () => {
-    runEpisode.mutate(activeArm, {
-      onSuccess: (r) => {
-        selectEpisode(r.episodeId);
-        toast.success(`Episode queued for arm ${activeArm}`);
-      },
-      onError: (e) => toast.error(e.message),
-    });
+    runEpisode.mutate(
+      { arm: activeArm },
+      {
+        onSuccess: (r) => {
+          selectEpisode(r.episodeId);
+          toast.success(r.adopted ? 'Episode greenlit from dry-run plan' : `Episode queued for arm ${activeArm}`);
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    );
   };
 
   return (
@@ -210,6 +213,15 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
                         <PenLine className="h-2.5 w-2.5" aria-hidden /> brief {ep.episode.briefFingerprint.slice(0, 8)}
                       </Badge>
                     )}
+                    {ep.episode.adoptedFromFp && (
+                      <Badge
+                        variant="outline"
+                        className="ml-1.5 gap-1 border-emerald-500/40 bg-emerald-500/5 font-mono text-[9px] text-emerald-700 dark:text-emerald-300"
+                        title={`Plan ADOPTED from a passing what-if dry-run (receipt ${ep.episode.adoptedFromFp.slice(0, 8)}) — the simulated plan IS the shooting script; the writer LLM was skipped ($0 plan spend)`}
+                      >
+                        <Clapperboard className="h-2.5 w-2.5" aria-hidden /> adopted {ep.episode.adoptedFromFp.slice(0, 8)}
+                      </Badge>
+                    )}
                   </span>
                   <span className="flex items-center gap-2">
                     <Badge className={STATUS_STYLES[ep.episode.status] ?? ''}>{ep.episode.status}</Badge>
@@ -308,14 +320,27 @@ function PipelineStepper({ status }: { status: string }) {
 
 function JobLogStrip({ logs }: { logs: EpisodeDetail['jobLogs'] }) {
   if (!logs || logs.length === 0) return null;
+  // governance receipts get their own color coding: the gate's live decisions
+  // should be unmistakable in the audit trail (BLOCK/DENY amber-rose, PASS emerald)
+  const statusStyle = (status: string, step: string) => {
+    if (step === 'GATE') {
+      if (status === 'DENY' || status === 'BLOCK') return 'font-bold text-rose-600 dark:text-rose-400';
+      if (status === 'PASS') return 'font-bold text-emerald-600 dark:text-emerald-400';
+      if (status === 'DRYRUN') return 'font-bold text-teal-600 dark:text-teal-400';
+      if (status === 'WARN') return 'font-bold text-amber-600 dark:text-amber-400';
+      return 'font-bold text-primary';
+    }
+    if (step === 'ADOPTION') return 'font-bold text-emerald-600 dark:text-emerald-400';
+    if (status === 'ERROR') return 'text-destructive';
+    if (status === 'WARN') return 'text-amber-600';
+    return '';
+  };
   return (
     <div className="mt-3 max-h-24 overflow-y-auto rounded-md bg-muted/60 p-2 font-mono text-[10.5px] leading-relaxed text-muted-foreground scrollbar-thin">
       {logs.map((l) => (
         <div key={l.id} className="break-all">
-          <span className={l.status === 'ERROR' ? 'text-destructive' : l.status === 'WARN' ? 'text-amber-600' : ''}>
-            [{l.status}]
-          </span>{' '}
-          {l.step} {l.detail ? `· ${l.detail.slice(0, 140)}` : ''}
+          <span className={statusStyle(l.status, l.step)}>[{l.status}]</span> {l.step}{' '}
+          {l.detail ? `· ${l.detail.slice(0, 140)}` : ''}
         </div>
       ))}
     </div>
