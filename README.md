@@ -100,10 +100,20 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
   plot loops** decayed by the same FSRS model the audience uses (threads below 25% retrievability
   are shown struck-through — forgotten); and a **cast presence** matrix that exposes continuity gaps
   as holes. Zero new AI spend — recomputed from stored artifacts.
-- **Calibrated cliffhanger recall.** The returning-hook bonus threshold is matched to the FSRS time
-  constant (R(Δ=1) ≈ 0.31 with stability 0.95 — an active-recall bar of 0.3 means "recalled exactly
-  one episode later"). The season-arc view exposed the original 0.5 bar as mathematically
-  unreachable; the fix is documented in `simulateWatch` and replay-verified byte-for-byte.
+- **Calibrated, loyalty-coupled cliffhanger recall.** The returning-hook bonus threshold is matched to
+  the FSRS time constant (an active-recall bar of 0.3 means "recalled exactly one episode later"), and
+  the cliffhanger's memory **encoding strength scales with each viewer's loyalty** — recall becomes a
+  graded, per-viewer event (the loyal third of the panel recalls; everyone else holds a fading trace),
+  not an all-or-nothing panel flip. The season-arc view exposed both earlier failure modes (a 0.5 bar
+  that was mathematically unreachable, then uniform recall); the shared write semantics live in one
+  place (`memoryWrites`) used by the pipeline, the determinism replay and the arc board, so the three
+  can never drift. Replay-verified byte-for-byte.
+- **Writer's brief (Arc → Writer hand-off).** The Arc tab opens with a numbered, evidence-backed
+  directive list for the next episode — rework the weakest measured beat, callback the most-at-risk
+  still-alive thread before FSRS decay eats it, sharpen the cliffhanger hand-off (measured hook payoff),
+  write for the churning cohort, watch the cost curve. Zero AI: a pure function of stored screenings,
+  memories and plans, fingerprinted so the same data always yields the same brief — copy as markdown
+  or download `brief-<show>-ep<N>-<arm>.md` (`GET /api/shows/:id/brief?arm=A|B`).
 - **Per-viewer journey timeline.** Select any viewer in the Memory inspector to see their episode-by-
   episode satisfaction trace S(t) as an SVG sparkline with their personal churn threshold (dashed
   amber), a drop marker where they bailed, amber pips where a memory was recalled, and their in-voice
@@ -148,7 +158,8 @@ premiere, budget $5.00, total spend $1.35):
 - Compile gate: fixture (`fixtures/bad-beat.json`) fails C2-PRESENCE + C4-PROP with 2 ERRORs and
   1 WARN — **$0.00 generation spend** (vs ~$0.72 estimated render cost saved); production plans
   auto-repair in bounded deterministic passes ($0) + ≤1 LLM repair.
-- Panel: 200 viewers × 6 episodes; same-seed re-screen replays byte-identical curves (verified).
+- Panel: 200 viewers × 6 episodes; hook payoff at every hand-off is a graded 34.5% (loyalty-coupled
+  recall — the loyal third of the panel); same-seed re-screen replays byte-identical curves (verified).
 - Stage ledger: RENDER $1.32 · WRITER $0.018 · OPTIMIZER $0.004 · AUDIENCE $0.001.
 - Full receipts: **Experiment tab** / `GET /api/shows/:id/experiments` (per-arm deltas, lift,
   Thompson evidence with n=40 micro-screening, viewer quotes).

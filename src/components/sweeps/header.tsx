@@ -23,6 +23,8 @@ const STAGE_COLORS: Record<string, string> = {
 };
 const STAGE_ORDER = ['RENDER', 'WRITER', 'AUDIENCE', 'OPTIMIZER', 'BIBLE', 'ANALYTICS'];
 
+const NO_SHOW = '__none__';
+
 function StageBudgetBar({
   byStage,
   totalUsd,
@@ -86,11 +88,17 @@ export function Header({ onShortcuts }: { onShortcuts?: () => void }) {
         </div>
 
         <div className="min-w-[180px] flex-1 sm:max-w-xs">
-          <Select value={activeShowId ?? undefined} onValueChange={(v) => setShow(v)}>
+          {/* sentinel keeps the Select permanently controlled (avoids the uncontrolled→controlled React warning during hydration) */}
+          <Select value={activeShowId ?? NO_SHOW} onValueChange={(v) => v !== NO_SHOW && setShow(v)}>
             <SelectTrigger size="sm" aria-label="Select show">
               <SelectValue placeholder="Select a show" />
             </SelectTrigger>
             <SelectContent>
+              {!activeShowId && (
+                <SelectItem value={NO_SHOW} disabled>
+                  No show selected
+                </SelectItem>
+              )}
               {(showsData?.shows ?? []).map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.title} · {s.mode}

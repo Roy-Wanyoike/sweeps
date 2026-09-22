@@ -124,16 +124,16 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 
 ## 08 · Dual-arm proof — one show, two fates
 
-> **“Treatment retained +4.0 pts at 6% lower cost per retained viewer.”**
+> **“Treatment retained +4.5 pts at 6% lower cost per retained viewer.”**
 > `MEASURED — SEED 92067772 · PANEL 200`
 
 - **Arm A — writer-only control** (never sees the audience) vs **Arm B — full loop** (cliffs + viewer quotes + Thompson-sampled variants fed back).
 - Same seed · same show bible · same 200-viewer panel · 6 episodes per arm.
-- Measured KM survival: Arm B stays above Arm A at every post-premiere episode (B 70.5% vs A 66.5% at EP3).
+- Measured KM survival: Arm B stays above Arm A at every post-premiere episode (B 69.5% vs A 65.0% at EP3).
 
 | Metric | Arm A | Arm B |
 |---|---|---|
-| Retention EP1→EP3 | −5.0 pts | **−1.0 pts** |
+| Retention EP1→EP3 | −6.5 pts | **−2.0 pts** |
 | Cost / retained viewer | $0.0016 | **$0.0015** |
 | Cliffs / episode (avg) | 7.0 | **5.7** (EP3: 8 vs **4**) |
 | Panel | 200 | 200 |
@@ -171,7 +171,7 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 
 ## 11 · Stack & deployment — one codebase, two clouds
 
-**Stack:** Next.js 16 App Router · TypeScript strict — single 6-tab dashboard (Episodes · **Arc** · Studio · Audience · Analytics · Experiment), 22 REST endpoints · Prisma + SQLite (11 models) · shadcn/ui + Tailwind 4 + Recharts · pure-TS seeded engines (mulberry32, FSRS memory, Kaplan–Meier, Thompson).
+**Stack:** Next.js 16 App Router · TypeScript strict — single 6-tab dashboard (Episodes · **Arc** · Studio · Audience · Analytics · Experiment), 23 REST endpoints · Prisma + SQLite (11 models) · shadcn/ui + Tailwind 4 + Recharts · pure-TS seeded engines (mulberry32, FSRS memory, Kaplan–Meier, Thompson).
 
 **Provider parity** — the only line that changes: `AI_PROVIDER=sandbox|qwen`
 
@@ -193,7 +193,7 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 | 0:20 | **SETUP** | One-line premise → show bible, 12 archetypes and the 200-viewer panel materialize. |
 | 0:50 | **REVEAL** | The Gate: bad fixture rejected — 2 ERRORs + 1 WARN, $0.00 spent; repair loop counts down live. |
 | 1:30 | **TWIST** | 200 personas screen Ep1: retention curve draws, comment wall fills, memory inspector decays. |
-| 2:10 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying below the recall bar, hook payoff measured — then the determinism receipt, signed. |
+| 2:10 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying below the recall bar, hook payoff measured (loyalty-coupled, graded) — then the **writer's brief** for the next episode and the determinism receipt, signed. |
 | 2:40 | **CLIFFHANGER** | Thompson picks the variant; dual-arm table lands; close on “measure attention, not output.” |
 
 Single screen recording, one take — ends on the live dashboard, DUAL mode running.

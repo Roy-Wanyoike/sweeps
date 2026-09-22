@@ -17,6 +17,7 @@ import {
   YAxis,
 } from 'recharts';
 import { Anchor, GitBranch, Lightbulb, TrendingDown, Users } from 'lucide-react';
+import { WritersBrief } from './writers-brief';
 
 /**
  * Season arc planner — the writers-room view across episodes.
@@ -259,7 +260,8 @@ function HookPayoffCard({ episodes, arm }: { episodes: ArcEpisode[]; arm: string
             <Anchor className="h-4 w-4 text-primary" aria-hidden /> Cliffhanger → hook payoff
           </CardTitle>
           <CardDescription>
-            Share of viewers whose memory recalls the cliffhanger at the next episode&apos;s first beat (measured, not assumed)
+            Share of viewers whose memory recalls the cliffhanger at the next episode&apos;s first beat. Recall is
+            loyalty-coupled: engaged viewers encode the cliffhanger strongest, so the payoff is graded, not binary.
           </CardDescription>
         </div>
       </CardHeader>
@@ -471,6 +473,8 @@ export function ArcTab({ showId, mode }: { showId: string; mode: string }) {
 
   return (
     <div className="grid gap-4">
+      <WritersBrief showId={showId} arm={arm} />
+
       <Card>
         <CardHeader className="pb-2">
           <div>

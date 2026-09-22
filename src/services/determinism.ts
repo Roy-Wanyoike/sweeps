@@ -1,7 +1,7 @@
 import { createHash, createHmac } from 'crypto';
 import { db } from '@/lib/db';
 import { Beat, jparse, ViewerPersona } from '@/lib/contracts';
-import { simulateWatch, IMPACT, KEY_TYPES } from './audience';
+import { memoryWrites, simulateWatch } from './audience';
 
 /**
  * Determinism verification: the strongest claim this project makes is
@@ -110,22 +110,16 @@ function hashRows(rows: { viewerId: string; events: string; keepWatching: boolea
   return createHash('sha256').update(canonical).digest('hex');
 }
 
-/** In-memory equivalent of simulateScreening's memory upserts (SET semantics). */
+/** In-memory equivalent of simulateScreening's memory upserts (SET semantics).
+ *  Derives from the shared memoryWrites() — the replay can never drift from the pipeline. */
 function applyMemoryUpdates(
   mem: Map<string, MemoryLike>,
+  persona: ViewerPersona,
   beats: Beat[],
   epNumber: number
 ): void {
-  for (const beat of beats) {
-    if (!KEY_TYPES.has(beat.type)) continue;
-    const impact = IMPACT[beat.type] ?? 0.4;
-    mem.set(`trope:${beat.type}`, { key: `trope:${beat.type}`, content: beat.title, stability: 0.5 + impact / 2, lastSeenEp: epNumber });
-    if (beat.type === 'CLIFFHANGER') {
-      mem.set('cliffhanger:last', { key: 'cliffhanger:last', content: beat.title, stability: 0.95, lastSeenEp: epNumber });
-    } else if (beat.type !== 'HOOK') {
-      const key = `plot:ep${epNumber}:b${beat.index}`;
-      mem.set(key, { key, content: beat.title, stability: 0.5 + impact / 2, lastSeenEp: epNumber });
-    }
+  for (const m of memoryWrites(persona, beats, epNumber)) {
+    mem.set(m.key, { key: m.key, content: m.content, stability: m.stability, lastSeenEp: m.lastSeenEp });
   }
 }
 
@@ -202,7 +196,7 @@ export async function verifyDeterminism(showId: string): Promise<VerifyReceipt> 
           dropAtBeat: sim.dropAtBeat,
           satisfaction: sim.satisfaction,
         });
-        applyMemoryUpdates(memMap, beats, ep.number);
+        applyMemoryUpdates(memMap, persona, beats, ep.number);
       }
 
       // byte-compare against stored screenings

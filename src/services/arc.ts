@@ -1,6 +1,9 @@
+import { createHash } from 'crypto';
 import { db } from '@/lib/db';
-import { Beat, BeatType, WatchEvent, jparse, retrievability } from '@/lib/contracts';
-import { IMPACT, KEY_TYPES } from './audience';
+import { Beat, BeatType, ViewerPersona, WatchEvent, jparse, retrievability } from '@/lib/contracts';
+import { keyMemoryStability, KEY_TYPES } from './audience';
+import { canonicalJson } from './determinism';
+import { computeMetrics } from './analytics';
 
 /**
  * Season arc planner: the writers-room view across episodes.
@@ -112,6 +115,15 @@ export async function computeSeasonArc(showId: string): Promise<SeasonArc | null
   const show = await db.show.findUnique({ where: { id: showId } });
   if (!show) return null;
 
+  // panel-representative loyalty: the open-loops FSRS decay uses the shared memory
+  // semantics with the panel's mean loyalty for the loyalty-coupled cliffhanger write
+  const viewers = await db.viewer.findMany({ where: { showId }, select: { persona: true } });
+  const loyalties = viewers
+    .map((v) => jparse<ViewerPersona>(v.persona, null as unknown as ViewerPersona))
+    .filter((p): p is ViewerPersona => Boolean(p))
+    .map((p) => p.loyalty);
+  const meanLoyalty = loyalties.length ? loyalties.reduce((a, b) => a + b, 0) / loyalties.length : 0.5;
+
   const episodes = await db.episode.findMany({
     where: { showId },
     orderBy: [{ arm: 'asc' }, { number: 'asc' }],
@@ -168,12 +180,12 @@ export async function computeSeasonArc(showId: string): Promise<SeasonArc | null
         if (!KEY_TYPES.has(b.type) || b.type === 'HOOK') continue;
         const key = b.type === 'CLIFFHANGER' ? 'cliffhanger:last' : `plot:ep${ep.number}:b${b.index}`;
         if (b.type !== 'CLIFFHANGER') threadsPlanted.push({ title: b.title, type: b.type });
-        // memory stability mirrors simulateScreening's writes
+        // memory stability derives from the SHARED write semantics (panel-representative loyalty)
         planted.set(key, {
           title: b.title,
           plantedEp: ep.number,
           type: b.type,
-          stability: b.type === 'CLIFFHANGER' ? 0.95 : 0.5 + (IMPACT[b.type] ?? 0.4) / 2,
+          stability: keyMemoryStability(b.type, meanLoyalty),
         });
       }
 
@@ -223,4 +235,193 @@ export async function computeSeasonArc(showId: string): Promise<SeasonArc | null
   const cast = [...castTotals.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
 
   return { showId, title: show.title, arms, cast };
+}
+
+/* ------------------------------ writer's brief ------------------------------ */
+
+/**
+ * The Arc → Writer hand-off: turns measured season data into a numbered,
+ * evidence-backed directive list for the next episode's outline. Zero AI — a
+ * pure function of stored screenings, memories and plans, so the same data
+ * always produces the same brief (fingerprint included).
+ */
+
+export type BriefKind = 'PROTECT_BEAT' | 'CALLBACK' | 'HOOK' | 'COHORT' | 'ECONOMY';
+
+export interface BriefDirective {
+  kind: BriefKind;
+  title: string;
+  body: string;
+  evidence: string;
+  severity: 'high' | 'medium' | 'low';
+}
+
+export interface WriterBrief {
+  showId: string;
+  title: string;
+  arm: string;
+  nextEpisodeNumber: number;
+  basedOn: { episodes: number[]; viewers: number };
+  directives: BriefDirective[];
+  /** sha256 over the canonical directives — same measurements, same brief */
+  fingerprint: string;
+  generatedAt: string;
+}
+
+const SCREENED = ['DONE', 'RENDER_PARTIAL', 'ANALYZING'];
+const SEVERITY_ORDER: Record<BriefDirective['severity'], number> = { high: 0, medium: 1, low: 2 };
+
+export async function computeWriterBrief(showId: string, arm?: string): Promise<WriterBrief | null> {
+  const show = await db.show.findUnique({ where: { id: showId } });
+  if (!show) return null;
+
+  const allEps = await db.episode.findMany({
+    where: { showId, status: { in: SCREENED } },
+    include: { _count: { select: { screenings: true } } },
+    orderBy: [{ arm: 'asc' }, { number: 'asc' }],
+  });
+  if (allEps.length === 0) return null;
+
+  const arms = [...new Set(allEps.map((e) => e.arm))].sort();
+  const chosenArm = arm && arms.includes(arm) ? arm : arms[arms.length - 1];
+  const armEps = allEps.filter((e) => e.arm === chosenArm);
+  const last = armEps[armEps.length - 1];
+  const nextNumber = last.number + 1;
+
+  const directives: BriefDirective[] = [];
+
+  // ---- 1. PROTECT_BEAT — the largest single-beat churn cliff in the latest episode
+  const lastBeats = parseBeats(last.beatPlan);
+  const lastScreenings = await db.screening.findMany({ where: { episodeId: last.id }, select: { events: true } });
+  const engagement = engagementByBeat(lastScreenings);
+  let worstBeat: { index: number; s: number } | null = null;
+  for (const b of lastBeats) {
+    const s = engagement.get(b.index);
+    if (s === undefined) continue;
+    if (!worstBeat || s < worstBeat.s) worstBeat = { index: b.index, s };
+  }
+  if (worstBeat && worstBeat.s < 0.55) {
+    const beatMeta = lastBeats.find((b) => b.index === worstBeat!.index);
+    directives.push({
+      kind: 'PROTECT_BEAT',
+      title: `Rework beat ${worstBeat.index} — "${beatMeta?.title ?? 'untitled'}"`,
+      body: `It scored the lowest measured engagement of the episode (S = ${worstBeat.s.toFixed(2)} on the 0-1 panel scale). Cut its length ~15% and land the conflict one beat earlier — the panel decides to stay or leave in the two beats after this one.`,
+      evidence: `lowest engagement S=${worstBeat.s.toFixed(2)} · Ep${last.number}`,
+      severity: worstBeat.s < 0.45 ? 'high' : 'medium',
+    });
+  }
+
+  // ---- 2. CALLBACK — the most-at-risk still-alive thread at the next episode's open
+  const planted = new Map<string, { title: string; plantedEp: number; type: string; stability: number }>();
+  for (const ep of armEps) {
+    const beats = parseBeats(ep.beatPlan);
+    for (const b of beats) {
+      if (!KEY_TYPES.has(b.type) || b.type === 'HOOK') continue;
+      const key = b.type === 'CLIFFHANGER' ? 'cliffhanger:last' : `plot:ep${ep.number}:b${b.index}`;
+      // loyalty passed as 0: plot-thread stability is loyalty-independent, and the
+      // loyalty-coupled 'cliffhanger:last' row is filtered out of the callback pick below
+      planted.set(key, { title: b.title, plantedEp: ep.number, type: b.type, stability: keyMemoryStability(b.type, 0) });
+    }
+  }
+  const atRisk = [...planted.entries()]
+    .map(([key, p]) => ({ key, ...p, strength: retrievability(p.stability, nextNumber - p.plantedEp) }))
+    .filter((t) => t.strength >= ALIVE_THRESHOLD && t.key !== 'cliffhanger:last')
+    .sort((a, b) => a.strength - b.strength)[0];
+  if (atRisk) {
+    directives.push({
+      kind: 'CALLBACK',
+      title: `Callback: "${atRisk.title}"`,
+      body: `Planted in Ep${atRisk.plantedEp} (${atRisk.type.toLowerCase()}), its memory trace decays to ${(atRisk.strength * 100).toFixed(0)}% by Ep${nextNumber} — still above the 25% recall threshold, but fading. Reference it explicitly within the first two beats to re-consolidate the thread before it is lost.`,
+      evidence: `FSRS retrievability ${(atRisk.strength * 100).toFixed(0)}% at Ep${nextNumber} open`,
+      severity: atRisk.strength < 0.32 ? 'high' : 'medium',
+    });
+  } else {
+    directives.push({
+      kind: 'CALLBACK',
+      title: 'No live threads remain',
+      body: `Every planted thread from Ep${armEps[0].number}-${last.number} has decayed below the 25% recall threshold. Open Ep${nextNumber} with a fresh reveal rather than a callback the panel can no longer feel.`,
+      evidence: `0 of ${planted.size} threads retrievable at Ep${nextNumber}`,
+      severity: 'medium',
+    });
+  }
+
+  // ---- 3. HOOK — measured cliffhanger payoff (loyalty-coupled recall)
+  for (let i = armEps.length - 2; i >= 0; i--) {
+    const ep = armEps[i];
+    const next = armEps[i + 1];
+    const beats = parseBeats(ep.beatPlan);
+    if (!beats.some((b) => b.type === 'CLIFFHANGER')) continue;
+    const nextScreenings = await db.screening.findMany({ where: { episodeId: next.id }, select: { events: true } });
+    const rate = hookPayoffRate(nextScreenings);
+    if (rate !== null) {
+      if (rate < 0.6) {
+        directives.push({
+          kind: 'HOOK',
+          title: `Sharpen the Ep${ep.number} cliffhanger hand-off`,
+          body: `Only ${(rate * 100).toFixed(0)}% of the panel recalled it when Ep${next.number} opened. Recall is loyalty-coupled (viewers with loyalty > 0.64 encode it strongly; everyone else holds a fading trace) — so re-state the stakes in Ep${next.number}'s first beat as a one-line callback, not a cold open.`,
+          evidence: `hook payoff ${(rate * 100).toFixed(0)}% at Ep${next.number} beat 0`,
+          severity: rate < 0.35 ? 'high' : 'medium',
+        });
+      }
+      break; // only the most recent measurable hand-off
+    }
+  }
+
+  // ---- 4. COHORT — the archetype churning hardest in the latest episode
+  const metrics = await computeMetrics(last.id);
+  if (metrics && metrics.cohorts.length > 0) {
+    const weakest = [...metrics.cohorts].sort((a, b) => a.keepRate - b.keepRate)[0];
+    const gap = weakest.keepRate - metrics.overall;
+    if (gap < -0.05) {
+      // where does their churn diverge from the panel?
+      let divergeBeat: { beat: number; type: string } | null = null;
+      for (const c of weakest.curve) {
+        const panelAt = metrics.curve.find((x) => x.beat === c.beat);
+        if (panelAt && panelAt.retention - c.retention > 0.1) {
+          divergeBeat = { beat: c.beat, type: panelAt.type };
+          break;
+        }
+      }
+      directives.push({
+        kind: 'COHORT',
+        title: `Write for the ${weakest.archetype}s`,
+        body: `They keep only ${(weakest.keepRate * 100).toFixed(0)}% vs the panel's ${(metrics.overall * 100).toFixed(0)}%${divergeBeat ? `, and their churn diverges from the panel at beat ${divergeBeat.beat} (${divergeBeat.type.toLowerCase()})` : ''}. Place a beat that rewards attention to detail in the first half of Ep${nextNumber} — this cohort is ${(weakest.n / Math.max(1, metrics.panel) * 100).toFixed(0)}% of the panel (n=${weakest.n}).`,
+        evidence: `keep rate ${(weakest.keepRate * 100).toFixed(0)}% vs panel ${(metrics.overall * 100).toFixed(0)}%`,
+        severity: gap < -0.15 ? 'high' : 'medium',
+      });
+    }
+  }
+
+  // ---- 5. ECONOMY — cost-per-retained-viewer trend across the arm
+  const cprv = (e: (typeof armEps)[number]) => e.spendUsd / Math.max(1, e._count.screenings * (e.retentionScore ?? 0));
+  if (armEps.length >= 2) {
+    const first = cprv(armEps[0]);
+    const lastC = cprv(last);
+    if (first > 0 && lastC > first * 1.25) {
+      directives.push({
+        kind: 'ECONOMY',
+        title: 'Watch the cost curve',
+        body: `Cost per retained viewer rose from $${first.toFixed(4)} (Ep${armEps[0].number}) to $${lastC.toFixed(4)} (Ep${last.number}). Bias Ep${nextNumber} toward beat shapes with high measured engagement per rendered beat — reuse proven setups instead of new set pieces.`,
+        evidence: `$${first.toFixed(4)} → $${lastC.toFixed(4)} per retained viewer`,
+        severity: lastC > first * 1.5 ? 'high' : 'medium',
+      });
+    }
+  }
+
+  directives.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+
+  const fingerprint = createHash('sha256')
+    .update(canonicalJson({ showId, arm: chosenArm, nextEpisodeNumber: nextNumber, directives }))
+    .digest('hex');
+
+  return {
+    showId,
+    title: show.title,
+    arm: chosenArm,
+    nextEpisodeNumber: nextNumber,
+    basedOn: { episodes: armEps.map((e) => e.number), viewers: metrics?.panel ?? 0 },
+    directives,
+    fingerprint,
+    generatedAt: new Date().toISOString(),
+  };
 }

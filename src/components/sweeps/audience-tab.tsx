@@ -37,6 +37,8 @@ const AVATAR_STYLES: Record<string, string> = {
   NEUTRAL: 'bg-secondary text-secondary-foreground',
 };
 
+const NO_EP = '__none__';
+
 function initials(name: string): string {
   return name
     .split(/[.\s_]+/)
@@ -92,11 +94,17 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
           </div>
           <div data-slot="card-action">
             <div className="flex items-center gap-2">
-              <Select value={currentEpId ?? undefined} onValueChange={setEpId}>
+              {/* sentinel keeps the Select permanently controlled across async episode loads */}
+              <Select value={currentEpId ?? NO_EP} onValueChange={(v) => v !== NO_EP && setEpId(v)}>
                 <SelectTrigger size="sm" className="w-40" aria-label="Select episode">
                   <SelectValue placeholder="Episode" />
                 </SelectTrigger>
                 <SelectContent>
+                  {!currentEpId && (
+                    <SelectItem value={NO_EP} disabled>
+                      No episodes yet
+                    </SelectItem>
+                  )}
                   {doneEpisodes.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
                       Ep{e.number} ({e.arm})

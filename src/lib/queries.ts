@@ -280,6 +280,25 @@ export interface ArcData {
   cast: string[];
 }
 
+export interface BriefDirective {
+  kind: 'PROTECT_BEAT' | 'CALLBACK' | 'HOOK' | 'COHORT' | 'ECONOMY';
+  title: string;
+  body: string;
+  evidence: string;
+  severity: 'high' | 'medium' | 'low';
+}
+
+export interface WriterBriefData {
+  showId: string;
+  title: string;
+  arm: string;
+  nextEpisodeNumber: number;
+  basedOn: { episodes: number[]; viewers: number };
+  directives: BriefDirective[];
+  fingerprint: string;
+  generatedAt: string;
+}
+
 /* ---------------------------------- queries --------------------------------- */
 
 export function useHealth() {
@@ -383,6 +402,16 @@ export function useShowArc(showId: string | null) {
   return useQuery({
     queryKey: ['arc', showId],
     queryFn: () => j<ArcData>(`/api/shows/${showId}/arc`),
+    enabled: Boolean(showId),
+    staleTime: 30_000,
+  });
+}
+
+/** Writer's brief — measured-data directives for the next episode (follows the selected arm). */
+export function useWriterBrief(showId: string | null, arm: string) {
+  return useQuery({
+    queryKey: ['brief', showId, arm],
+    queryFn: () => j<{ brief: WriterBriefData }>(`/api/shows/${showId}/brief?arm=${arm}`),
     enabled: Boolean(showId),
     staleTime: 30_000,
   });

@@ -42,6 +42,72 @@ const FIRST_NAMES = [
 export const IMPACT: Partial<Record<BeatType, number>> = { CLIFFHANGER: 0.9, TWIST: 0.8, REVEAL: 0.6, HOOK: 0.4 };
 export const KEY_TYPES = new Set<BeatType>(['HOOK', 'REVEAL', 'TWIST', 'CLIFFHANGER']);
 
+/* ------------------------- shared memory-write semantics ------------------------
+ * The single source of truth for what a screened episode writes into viewer
+ * memory. The determinism replay and the arc board MUST derive from this
+ * function — never re-derive the numbers inline — so the three can't drift.
+ * ---------------------------------------------------------------------------- */
+
+export interface MemoryUpdate {
+  key: string;
+  content: string;
+  stability: number;
+  lastSeenEp: number;
+}
+
+/**
+ * Viewer-differentiated cliffhanger encoding: loyal/attentive viewers encode the
+ * cliffhanger more strongly, so returning-hook recall becomes a graded, per-viewer
+ * event instead of an all-or-nothing panel flip. With R = exp(-Δ/(0.9·s)) and the
+ * active-recall bar at 0.3, recall at Δ=1 requires stability > 0.924, i.e.
+ * loyalty > 0.64 — roughly the loyal third of the panel (Binge-Watchers,
+ * Completists, Loyalists, most Loss-Averse Fans). Low-loyalty viewers still hold
+ * a fading trace (R ≈ 0.23-0.29) that decays away by the next gap.
+ */
+export const CLIFF_BASE_STABILITY = 0.7;
+export const CLIFF_LOYALTY_GAIN = 0.35;
+
+export function cliffhangerStability(loyalty: number): number {
+  return Math.min(1, CLIFF_BASE_STABILITY + CLIFF_LOYALTY_GAIN * loyalty);
+}
+
+/** Memory strength written for a key beat — shared by pipeline, replay, and arc board. */
+export function keyMemoryStability(type: BeatType, loyalty: number): number {
+  if (type === 'CLIFFHANGER') return cliffhangerStability(loyalty);
+  return 0.5 + (IMPACT[type] ?? 0.4) / 2;
+}
+
+/**
+ * Pure memory writes for one viewer watching one episode. Used by:
+ *  - simulateScreening (persisted upserts)
+ *  - the determinism replay (in-memory Map)
+ *  - the arc board (panel-representative thread strengths)
+ */
+export function memoryWrites(persona: ViewerPersona, beats: Beat[], epNumber: number): MemoryUpdate[] {
+  const out: MemoryUpdate[] = [];
+  for (const beat of beats) {
+    if (!KEY_TYPES.has(beat.type)) continue;
+    const impact = IMPACT[beat.type] ?? 0.4;
+    out.push({ key: `trope:${beat.type}`, content: beat.title, stability: 0.5 + impact / 2, lastSeenEp: epNumber });
+    if (beat.type === 'CLIFFHANGER') {
+      out.push({
+        key: 'cliffhanger:last',
+        content: beat.title,
+        stability: cliffhangerStability(persona.loyalty),
+        lastSeenEp: epNumber,
+      });
+    } else if (beat.type !== 'HOOK') {
+      out.push({
+        key: `plot:ep${epNumber}:b${beat.index}`,
+        content: beat.title,
+        stability: 0.5 + impact / 2,
+        lastSeenEp: epNumber,
+      });
+    }
+  }
+  return out;
+}
+
 export function generatePersonas(showId: string, panelSize: number, masterSeed: number): ViewerPersona[] {
   const personas: ViewerPersona[] = [];
   for (let i = 0; i < panelSize; i++) {
@@ -139,10 +205,13 @@ export function simulateWatch(
     }
   }
   // returning-hook bonus: cliffhanger memory from previous episode.
-  // Threshold calibrated to the FSRS time constant: with cliffhanger stability 0.95
-  // (capped at 1.0 on write), R(Δ=1) ≈ 0.31-0.33 and R(Δ=2) ≈ 0.11 — so an active-recall
-  // bar of 0.3 means "recalled exactly one episode later", while 0.5 was mathematically
-  // unreachable (a dead code path the season-arc view exposed).
+  // The active-recall bar is calibrated to the FSRS time constant: R(Δ=1) spans
+  // ~0.23-0.33 depending on the viewer's loyalty-coupled encoding strength, so a
+  // bar of 0.3 means "recalled exactly one episode later, by sufficiently loyal
+  // viewers" while R(Δ=2) ≤ 0.11 never clears it. Before the loyalty coupling the
+  // bar of 0.5 was mathematically unreachable (a dead code path the season-arc
+  // view exposed), and after the first calibration recall was uniform across the
+  // panel — both failure modes the arc view now guards against.
   let cliffR = 0;
   const cliffMem = memories.find((m) => m.key === 'cliffhanger:last');
   if (cliffMem && cliffMem.lastSeenEp === epNumber - 1) {
@@ -221,37 +290,9 @@ export async function simulateScreening(episodeId: string): Promise<number> {
       satisfaction: sim.satisfaction,
       events: JSON.stringify(sim.events),
     });
-    // memory writes
-    for (const beat of beats) {
-      if (!KEY_TYPES.has(beat.type)) continue;
-      const impact = IMPACT[beat.type] ?? 0.4;
-      memoryUpdates.push({
-        viewerId: viewer.id,
-        arm,
-        key: `trope:${beat.type}`,
-        content: beat.title,
-        stability: 0.5 + impact / 2,
-        lastSeenEp: epNumber,
-      });
-      if (beat.type === 'CLIFFHANGER') {
-        memoryUpdates.push({
-          viewerId: viewer.id,
-          arm,
-          key: 'cliffhanger:last',
-          content: beat.title,
-          stability: 0.95,
-          lastSeenEp: epNumber,
-        });
-      } else if (beat.type !== 'HOOK') {
-        memoryUpdates.push({
-          viewerId: viewer.id,
-          arm,
-          key: `plot:ep${epNumber}:b${beat.index}`,
-          content: beat.title,
-          stability: 0.5 + impact / 2,
-          lastSeenEp: epNumber,
-        });
-      }
+    // memory writes — semantics shared with the determinism replay and the arc board
+    for (const m of memoryWrites(persona, beats, epNumber)) {
+      memoryUpdates.push({ viewerId: viewer.id, arm, ...m });
     }
   }
 
