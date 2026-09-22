@@ -17,3 +17,15 @@ Stage Summary:
 - Winner meta-pattern: deterministic "proof machinery" (stats, baselines, signed logs, calibration) wrapped around Qwen's probabilistic core, in a real pain domain.
 - Recommendation spec, architecture, 48h build plan and demo script delivered in chat. Research artifacts cached in /tmp.
 - Next step if user wants to build it: scaffold Next.js dashboard + agent pipeline per the build plan.
+
+---
+Task ID: 2
+Agent: Z.ai Code (main)
+Task: Produce the complete end-to-end build prompt for "Sweeps" (architecture, tech, scope, algorithms, milestones, verification).
+
+Work Log:
+- Authored /home/z/my-project/SWEEPS_MASTER_BUILD_PROMPT.md (~19 sections): role/mission, 5 measurable product claims, environment constraints, exact stack, architecture diagram, full Prisma schema (Show/Character/WorldEntity/Episode/Beat/Viewer/ViewerMemory/Screening/Experiment/CostEntry/JobLog), dual-provider AI layer (sandbox z-ai-web-dev-sdk <-> DashScope Qwen) with metering + degradation ladder, specs for Writer/Compiler(8 deterministic rules)/Renderer/Audience(FSRS memory + seeded watch sim)/Optimizer(Thompson + dual-arm), pipeline state machine, 13-route API surface, 5-tab dashboard spec, M0-M7 milestones with acceptance criteria, agent-browser verification protocol, 3-min demo script, submission checklist, anti-scope, definition of done.
+
+Stage Summary:
+- Master prompt saved at SWEEPS_MASTER_BUILD_PROMPT.md and delivered in chat.
+- Ready to execute: next step is to implement M0-M7 per the prompt when user says go.
