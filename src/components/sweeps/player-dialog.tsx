@@ -5,8 +5,9 @@ import { EpisodeDetail } from '@/lib/queries';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pause, Play, Star } from 'lucide-react';
 import { kenBurns } from '@/services/storyboard';
+import { toast } from 'sonner';
 
 const MAX_BEAT_MS = 6000; // compressed playback for demo purposes
 
@@ -21,6 +22,8 @@ export function PlayerDialog({
 }) {
   const [current, setCurrent] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [myRating, setMyRating] = useState(0);
+  const [ratePending, setRatePending] = useState(false);
 
   const beats = useMemo(
     () => detail.beats.filter((b) => b.stillPath).map((b) => ({ row: b, beat: b.beat })),
@@ -34,6 +37,7 @@ export function PlayerDialog({
     if (open) {
       setCurrent(0);
       setPlaying(true);
+      setMyRating(0);
     }
   }
 
@@ -48,6 +52,25 @@ export function PlayerDialog({
     }, dur);
     return () => clearTimeout(t);
   }, [open, playing, current, cur, beats.length]);
+
+  const submitRating = async (n: number) => {
+    setMyRating(n);
+    setRatePending(true);
+    try {
+      const res = await fetch(`/api/episodes/${detail.episode.id}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'You (player)', rating: n }),
+      });
+      if (!res.ok) throw new Error('Could not save rating');
+      toast.success(`Rated ${n}/5 — you're on the wall`, { description: 'See the Audience tab for your human-panel badge.' });
+    } catch (e) {
+      toast.error((e as Error).message);
+      setMyRating(0);
+    } finally {
+      setRatePending(false);
+    }
+  };
 
   if (!open) return null;
   const kb = cur ? kenBurns(current + (detail.episode.number * 31 + detail.episode.arm.charCodeAt(0))) : null;
@@ -125,8 +148,31 @@ export function PlayerDialog({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <div className="max-w-[55%] truncate text-xs text-muted-foreground" title={cur?.beat?.purpose}>
-              {cur?.beat?.purpose}
+            <div className="flex items-center gap-3">
+              {current >= beats.length - 1 && !playing && (
+                <div className="flex items-center gap-1.5 fade-in" aria-label="Rate this episode">
+                  <span className="text-xs text-muted-foreground">Rate it:</span>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => submitRating(n)}
+                      disabled={ratePending || myRating > 0}
+                      aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
+                      className="rounded p-0.5 transition-transform hover:scale-125 disabled:cursor-default"
+                    >
+                      <Star
+                        className={`h-4 w-4 ${
+                          n <= myRating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/40 hover:text-amber-400'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  {myRating > 0 && <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">saved</span>}
+                </div>
+              )}
+              <div className="max-w-[55%] truncate text-xs text-muted-foreground" title={cur?.beat?.purpose}>
+                {cur?.beat?.purpose}
+              </div>
             </div>
           </div>
         </div>

@@ -4,11 +4,13 @@ import { useMemo, useState } from 'react';
 import { ShowDetail, Beat as QueriesBeat, useEpisode, useMetrics, usePersonas, useReactions, useViewer } from '@/lib/queries';
 import { useSweeps } from '@/lib/store';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Brain, Eye, MessageSquare, Search, Users } from 'lucide-react';
+import { Brain, Eye, MessageSquare, Search, Star, UserRound, Users } from 'lucide-react';
+import { RateDialog } from './rate-dialog';
 
 function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   const s = sentiment ?? 'NEUTRAL';
@@ -49,6 +51,7 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
   const [epId, setEpId] = useState<string | null>(doneEpisodes[doneEpisodes.length - 1]?.id ?? null);
   const currentEpId = epId ?? doneEpisodes[doneEpisodes.length - 1]?.id ?? null;
   const [query, setQuery] = useState('');
+  const [rateOpen, setRateOpen] = useState(false);
 
   const { data: epData } = useEpisode(currentEpId);
   const { data: reactions } = useReactions(currentEpId);
@@ -86,18 +89,23 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
             </CardDescription>
           </div>
           <div data-slot="card-action">
-            <Select value={currentEpId ?? undefined} onValueChange={setEpId}>
-              <SelectTrigger size="sm" className="w-40" aria-label="Select episode">
-                <SelectValue placeholder="Episode" />
-              </SelectTrigger>
-              <SelectContent>
-                {doneEpisodes.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    Ep{e.number} ({e.arm})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select value={currentEpId ?? undefined} onValueChange={setEpId}>
+                <SelectTrigger size="sm" className="w-40" aria-label="Select episode">
+                  <SelectValue placeholder="Episode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {doneEpisodes.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      Ep{e.number} ({e.arm})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={() => setRateOpen(true)} title="Rate this episode yourself">
+                <Star className="mr-1 h-3.5 w-3.5" aria-hidden /> Rate it
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -108,34 +116,52 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
               )}
               {(reactions?.reactions ?? []).map((r, i) => {
                 const s = r.sentiment ?? 'NEUTRAL';
+                const human = r.source === 'HUMAN';
                 return (
-                  <div key={i} className="flex items-start gap-2.5">
+                  <div key={i} className={`flex items-start gap-2.5 ${human ? 'rounded-xl border border-primary/30 bg-primary/[0.04] p-2' : ''}`}>
                     <div
-                      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${AVATAR_STYLES[s]}`}
+                      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                        human ? 'bg-gradient-to-br from-primary to-rose-500 text-white' : AVATAR_STYLES[s]
+                      }`}
                       aria-hidden
                     >
-                      {initials(r.name)}
+                      {human ? <UserRound className="h-4 w-4" /> : initials(r.name)}
                     </div>
                     <div
                       className={`relative flex-1 rounded-xl rounded-tl-sm border bg-gradient-to-br p-2.5 ${
-                        s === 'NEGATIVE'
-                          ? 'border-rose-500/25 from-rose-500/5 to-transparent'
-                          : s === 'POSITIVE'
-                            ? 'border-emerald-500/25 from-emerald-500/5 to-transparent'
-                            : 'from-muted/50 to-transparent'
+                        human
+                          ? 'border-primary/25 from-primary/5 to-transparent'
+                          : s === 'NEGATIVE'
+                            ? 'border-rose-500/25 from-rose-500/5 to-transparent'
+                            : s === 'POSITIVE'
+                              ? 'border-emerald-500/25 from-emerald-500/5 to-transparent'
+                              : 'from-muted/50 to-transparent'
                       }`}
                     >
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="font-semibold text-foreground">{r.name}</span>
-                        <Badge variant="outline" className="text-[10px]">{r.archetype}</Badge>
+                        {human ? (
+                          <Badge className="bg-gradient-to-r from-primary to-rose-500 text-primary-foreground hover:from-primary hover:to-rose-500">
+                            <UserRound className="mr-0.5 h-2.5 w-2.5" aria-hidden /> human panel
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">{r.archetype}</Badge>
+                        )}
+                        {human && r.rating !== null && (
+                          <span className="flex items-center gap-0.5" aria-label={`${r.rating} out of 5 stars`}>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <Star key={n} className={`h-3 w-3 ${n <= (r.rating ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} aria-hidden />
+                            ))}
+                          </span>
+                        )}
                         <SentimentBadge sentiment={r.sentiment} />
-                        {!r.keepWatching && r.dropAtBeat !== null && (
+                        {!human && !r.keepWatching && r.dropAtBeat !== null && (
                           <span className="rounded bg-rose-500/10 px-1.5 py-0.5 font-medium text-rose-600 dark:text-rose-400">
                             dropped @ beat {r.dropAtBeat}{beatTitle(r.dropAtBeat) ? ` — “${beatTitle(r.dropAtBeat)}”` : ''}
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-sm leading-relaxed">{r.comment}</p>
+                      {r.comment && <p className="mt-1 text-sm leading-relaxed">{r.comment}</p>}
                     </div>
                   </div>
                 );
@@ -144,6 +170,7 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
           </ScrollArea>
         </CardContent>
       </Card>
+      <RateDialog open={rateOpen} onOpenChange={setRateOpen} episodeId={currentEpId} episodeLabel={`Ep${doneEpisodes.find((e) => e.id === currentEpId)?.number ?? ''} (${doneEpisodes.find((e) => e.id === currentEpId)?.arm ?? ''})`} />
 
       <div className="grid content-start gap-4">
         <Card>

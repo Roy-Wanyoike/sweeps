@@ -12,6 +12,7 @@ import { ExperimentTab } from '@/components/sweeps/experiment-tab';
 import { ShortcutsDialog } from '@/components/sweeps/shortcuts-dialog';
 import { useCreateShow, useRunDemo, useShow, useShows } from '@/lib/queries';
 import { useSweeps, TabKey } from '@/lib/store';
+import { useUrlSync } from '@/lib/url-sync';
 import { useTheme } from 'next-themes';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -214,6 +215,7 @@ function Dashboard({ onShortcuts }: { onShortcuts: () => void }) {
 }
 
 function Inner() {
+  useUrlSync();
   const activeShowId = useSweeps((s) => s.activeShowId);
   const { data: showsData, isLoading } = useShows();
   const showExists = Boolean(activeShowId && showsData?.shows.some((s) => s.id === activeShowId));

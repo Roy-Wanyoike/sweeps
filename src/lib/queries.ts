@@ -190,12 +190,14 @@ export interface ViewerDetail {
 
 export interface ReactionsData {
   reactions: {
+    source: 'SIM' | 'HUMAN';
     name: string;
     archetype: string;
     comment: string | null;
     sentiment: string | null;
     dropAtBeat: number | null;
     keepWatching: boolean;
+    rating: number | null;
     beatTitle?: string;
   }[];
 }
@@ -284,6 +286,17 @@ export function useReactions(episodeId: string | null) {
     queryKey: ['reactions', episodeId],
     queryFn: () => j<ReactionsData>(`/api/episodes/${episodeId}/reactions`),
     enabled: Boolean(episodeId),
+  });
+}
+
+export function useSubmitReaction(episodeId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { name: string; rating: number; comment?: string }) => {
+      const { url, init } = post(`/api/episodes/${episodeId}/reactions`, body);
+      return j<{ reaction: unknown }>(url, init);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reactions', episodeId] }),
   });
 }
 

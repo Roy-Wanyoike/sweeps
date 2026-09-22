@@ -65,6 +65,13 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
 - **Audience exploration.** Search/filter the 200 persona viewers by name or archetype, open any
   viewer's arm-scoped memory inspector (FSRS-style R bars + watch history), and read the
   sentiment-tinted reaction wall with drop-point attribution.
+- **Human panel mode.** A real human can join the simulated panel: watch an episode in the player
+  (rating stars appear when playback ends) or use "Rate it" on the Audience tab. Human reactions
+  post to `POST /api/episodes/:id/reactions` (Zod-validated) and render pinned on the reaction wall
+  with a gradient **human panel** badge and star rating — human-in-the-loop, visibly beside the sims.
+- **Shareable deep links.** The dashboard syncs `?show=…&tab=…&ep=…` into the URL as you navigate;
+  the header link button copies the exact view. Open a link and you land on that show, tab and
+  episode — built for judge walkthroughs.
 - **Stage-aware budget bar.** The header budget meter is segmented by pipeline stage
   (render/writer/audience/optimizer), so governance caps are visible at a glance.
 

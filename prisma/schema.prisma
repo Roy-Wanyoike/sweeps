@@ -70,6 +70,7 @@ model Episode {
   beats          Beat[]
   screenings     Screening[]
   jobLogs        JobLog[]
+  humanReactions HumanReaction[]
 
   @@unique([showId, number, arm])
 }
@@ -172,5 +173,16 @@ model JobLog {
   step      String
   status    String // STARTED|OK|WARN|ERROR
   detail    String?
+  createdAt DateTime @default(now())
+}
+
+model HumanReaction {
+  id        String   @id @default(cuid())
+  episodeId String
+  episode   Episode  @relation(fields: [episodeId], references: [id])
+  name      String
+  rating    Int // 1-5 stars from a real human watching the player
+  comment   String?
+  sentiment String // POSITIVE|NEUTRAL|NEGATIVE (derived from rating)
   createdAt DateTime @default(now())
 }

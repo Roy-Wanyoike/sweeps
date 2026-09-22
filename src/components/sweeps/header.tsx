@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreateShowDialog } from './create-show-dialog';
-import { Clapperboard, Moon, PlayCircle, Sun } from 'lucide-react';
+import { Clapperboard, Link2, Moon, PlayCircle, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 
@@ -141,6 +141,22 @@ export function Header({ onShortcuts }: { onShortcuts?: () => void }) {
             Run Full Demo
           </Button>
           <CreateShowDialog />
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Copy shareable link"
+            title="Copy shareable link to this view"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(window.location.href);
+                toast.success('Shareable link copied', { description: 'Anyone opening it lands on this exact show + tab.' });
+              } catch {
+                toast.error('Could not copy — your browser blocked clipboard access');
+              }
+            }}
+          >
+            <Link2 className="h-4 w-4" aria-hidden />
+          </Button>
           <Button
             size="icon"
             variant="ghost"
