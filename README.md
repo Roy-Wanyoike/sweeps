@@ -142,6 +142,22 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
   whole-panel directive set plus one section per cohort lens — as a single markdown document with a
   lens/fingerprint table (`GET /api/shows/:id/brief-bundle?arm=A|B`). The writers' room reads the
   whole directive set side by side; every section carries its own deterministic fingerprint.
+- **Memory-aware micro-screening.** The optimizer's 40-viewer variant tests are not panel averages:
+  each sampled viewer scores the two candidate beats through `microScreenBeat` with their OWN
+  arm-scoped FSRS memories (trope fatigue from what they actually remember), their real last
+  smoothed satisfaction carried one beat forward, the loyalty-coupled returning-hook recall (only
+  viewers whose memory clears the active-recall bar grant the +0.10), and common-random-number
+  noise shared between both variants — a paired comparison. Thompson sampling keeps the reward on
+  the mean-satisfaction scale (discriminative at n=40) while keep and hook-recall counts are
+  persisted as per-experiment evidence (visible on the Experiment tab as `memory-aware` rows).
+- **Pre-flight gate (optional governance).** A show-level switch on the what-if card arms the gate:
+  arm-B episodes past the premiere are then refused with **428 PRECONDITION REQUIRED** unless a
+  passing dry-run (STRONG or PROMISING) exists for that exact (arm, episode) — whole-panel brief,
+  matching the CURRENT brief fingerprint, so a stale dry-run never opens the gate. Every dry-run is
+  persisted as a receipt (`WhatIfRun`: grade, keep-rate, plan + brief fingerprints) and shown as the
+  gate's audit log on the what-if card; the write response echoes the receipt that opened it. The
+  control arm is never gated (it writes blind by experimental design), and the autonomous full-demo
+  run bypasses the gate with an honest WARN in the job log.
 - **Per-viewer journey timeline.** Select any viewer in the Memory inspector to see their episode-by-
   episode satisfaction trace S(t) as an SVG sparkline with their personal churn threshold (dashed
   amber), a drop marker where they bailed, amber pips where a memory was recalled, and their in-voice
@@ -169,37 +185,40 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
 
 ## Measured numbers (from the last full run)
 
-Final verified run — "Neon Countdown" (seed 92067772, panel 200, 4 episodes × 2 arms, paired
-premiere, budget $5.00, total spend $1.81):
+Final verified run — "Neon Countdown" (seed 92067772, panel 200, 5 episodes × 2 arms, paired
+premiere, budget $5.00, total spend $2.10):
 
 | Metric | Arm A — control | Arm B — full loop |
 |---|---|---|
 | Ep1 (paired premiere) | 71.5% | 71.5% (identical by design) |
 | Ep2 | 65.0% | **70.0%** |
 | Ep3 | 65.0% | **69.5%** |
-| Ep4 (written from the brief — first brief-fed episode) | 65.0% | 64.0% |
-| Retention Δ EP1→EP4 | −6.5 pts | −7.5 pts |
-| **Lift (B − A)** | | **−1.0 pt** (single-episode noise; honest) |
-| Cliffs / episode (avg) | 7.3 | **6.5** |
-| Avg spend / episode | $0.231 | **$0.211** |
-| Cost per retained viewer | $0.0017 | **$0.0015** (−12%) |
+| Ep4 (first brief-fed episode) | 65.0% | 64.0% |
+| Ep5 (written through the pre-flight gate; memory-aware optimizer era) | 65.0% | 64.5% |
+| Retention Δ EP1→EP5 | −6.5 pts | −7.0 pts |
+| **Lift (B − A)** | | **−0.5 pt** (single-episode noise; honest) |
+| Avg spend / episode | $0.217 | **$0.193** |
+| Cost per retained viewer | $0.0016 | **$0.0014** (−13%) |
 
-The run is reported exactly as measured: over 4 episodes the treatment arm's retention advantage
-washed out to a coin flip while its **cost-per-retained-viewer edge (−12%) persisted across the
-whole season**. Ep4 (B) is the first episode written *from* the Writer's Brief — the loop closure
-was proven (compliance 3/3) but one episode's retention is noise, and the dashboard says so instead
-of hiding it. Every number above is reproducible from the seed; the determinism receipt re-verifies
-all 8 episodes (1,600 viewer-screenings) byte-for-byte in ~150 ms.
+The run is reported exactly as measured: over 5 episodes the treatment arm's retention advantage
+washed out to a coin flip while its **cost-per-retained-viewer edge (−13%) persisted across the
+whole season** (Ep5 B spent $0.120 for 64.5% — the cheapest episode of the run). Ep4 and Ep5 (B)
+are written *from* the Writer's Brief — Ep5 was queued through the armed pre-flight gate with
+dry-run fp `89a1c8d4…` (PROMISING, 65.0% keep, +1.0 pts vs Ep4 baseline) and its compliance receipt
+verified; the loop closure is proven, but retention deltas of ±1 pt per episode are noise, and the
+dashboard says so instead of hiding it. Every number above is reproducible from the seed; the
+determinism receipt re-verifies all 10 episodes (2,000 viewer-screenings) byte-for-byte in ~620 ms.
 
 - Compile gate: fixture (`fixtures/bad-beat.json`) fails C2-PRESENCE + C4-PROP with 2 ERRORs and
   1 WARN — **$0.00 generation spend** (vs ~$0.72 estimated render cost saved); production plans
   auto-repair in bounded deterministic passes ($0) + ≤1 LLM repair.
-- Panel: 200 viewers × 8 episodes (4 per arm); hook payoff at every hand-off is a graded ~35%
+- Panel: 200 viewers × 10 episodes (5 per arm); hook payoff at every hand-off is a graded ~35%
   (loyalty-coupled recall — the loyal third of the panel); same-seed re-screen replays
   byte-identical curves (verified).
-- Stage ledger: RENDER $1.76 · WRITER $0.034 · OPTIMIZER $0.008 · AUDIENCE $0.004.
+- Stage ledger: RENDER $2.04 · WRITER $0.041 · OPTIMIZER $0.010 · AUDIENCE $0.005.
 - Full receipts: **Experiment tab** / `GET /api/shows/:id/experiments` (per-arm deltas, lift,
-  Thompson evidence with n=40 micro-screening, viewer quotes).
+  Thompson evidence with n=40 memory-aware micro-screening — keep and hook-recall counts per
+  variant — viewer quotes).
 
 ![Analytics — retention curves](presentation/screenshots/analytics.png)
 ![Experiment — dual-arm verdict](presentation/screenshots/experiment.png)

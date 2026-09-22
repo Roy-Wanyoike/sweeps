@@ -256,6 +256,72 @@ export function simulateWatch(
   };
 }
 
+/**
+ * Memory-aware micro-screen of ONE candidate beat — the optimizer's upgrade from
+ * flat text scoring to per-viewer, memory-grounded rewards.
+ *
+ * Instead of every "viewer" scoring the variant with an invented trope strength
+ * of 0.3, each sampled viewer now scores it with:
+ *   - their OWN trope strengths, derived from their arm-scoped FSRS memories
+ *     (repeated types they remember are less novel → lower satisfaction),
+ *   - the loyalty-coupled returning-hook bonus when the slot is beat 0 — only
+ *     viewers whose memory actually clears the 0.3 active-recall bar get it,
+ *   - their real last smoothed satisfaction S from the previous screening, so
+ *     the reported keep signal is "would the smoothed state hold above MY churn
+ *     threshold after this beat", not a panel-level average,
+ *   - deterministic per-(viewer, slot) noise, shared between both variants of a
+ *     slot (common random numbers — a paired comparison, less variance).
+ *
+ * Pure: no reads, no writes, no AI, no spend. The keep signal saturates near 1.0
+ * by construction (S1 = 0.85·lastS + 0.15·s vs thresholds ~0.3-0.55), so the
+ * Thompson reward stays on the mean-satisfaction scale (discriminative at n=40)
+ * while keep/hook-recall counts are reported as evidence.
+ */
+export interface MicroScreenOutcome {
+  satisfaction: number;
+  keep: boolean;
+  recalledHook: boolean;
+}
+
+export function microScreenBeat(
+  persona: ViewerPersona,
+  memories: MemoryLike[],
+  lastS: number,
+  beat: Beat,
+  slotIndex: number,
+  epNumber: number
+): MicroScreenOutcome {
+  // trope strengths from the viewer's actual cross-episode memory (same rule as
+  // simulateWatch: strongest retrievability wins)
+  const tropeStrength = new Map<BeatType, number>();
+  for (const m of memories) {
+    if (m.key.startsWith('trope:')) {
+      const t = m.key.slice(6) as BeatType;
+      const r = retrievability(m.stability, epNumber - m.lastSeenEp);
+      tropeStrength.set(t, Math.max(tropeStrength.get(t) ?? 0, r));
+    }
+  }
+  // returning-hook recall — only meaningful for the beat-0 slot
+  let cliffR = 0;
+  if (slotIndex === 0) {
+    const cliffMem = memories.find((m) => m.key === 'cliffhanger:last');
+    if (cliffMem && cliffMem.lastSeenEp === epNumber - 1) {
+      cliffR = retrievability(cliffMem.stability, 1);
+    }
+  }
+  // common-random-numbers noise: seeded per (viewer, episode, slot) so both
+  // variants of the slot face the same per-viewer noise draw
+  const rng = new Rng(hashSeed(persona.seed, 'micro', epNumber, slotIndex));
+  const noise = rng.normal(0, 0.05);
+  let s = singleBeatSatisfaction(persona, beat, tropeStrength.get(beat.type) ?? 0.15);
+  if (slotIndex === 0 && cliffR > 0.3) s += 0.1;
+  s += noise - 0.02 * slotIndex;
+  s = clamp(s, 0, 1);
+  // keep signal: the viewer's real last smoothed state carried one beat forward
+  const S1 = 0.85 * lastS + 0.15 * s;
+  return { satisfaction: s, keep: S1 >= persona.churnThreshold, recalledHook: slotIndex === 0 && cliffR > 0.3 };
+}
+
 export async function simulateScreening(episodeId: string): Promise<number> {
   const episode = await db.episode.findUnique({ where: { id: episodeId }, include: { show: true } });
   if (!episode) return 0;

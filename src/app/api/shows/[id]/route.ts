@@ -7,25 +7,45 @@ export const dynamic = 'force-dynamic';
 
 const MAX_EPISODES = 6;
 
-/** PATCH /api/shows/[id] — extend the season. Body: { episodeCount: number }.
- *  Owners can grow the season (up to 6) so the brief→writer→panel loop keeps
- *  running past the initial order; the count can never shrink below what exists. */
+/** PATCH /api/shows/[id] — extend the season ({ episodeCount }) and/or toggle the
+ *  pre-flight gate ({ gateOnWhatIf }). Owners can grow the season (up to 6) so the
+ *  brief→writer→panel loop keeps running past the initial order; the count can
+ *  never shrink below what exists. The gate makes arm-B episodes require a passing
+ *  what-if dry-run before any render dollars move. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const body = (await req.json()) as { episodeCount?: unknown };
-    const count = Math.round(Number(body.episodeCount));
-    if (!Number.isFinite(count) || count < 1 || count > MAX_EPISODES) {
-      return NextResponse.json({ error: `episodeCount must be an integer between 1 and ${MAX_EPISODES}` }, { status: 400 });
-    }
+    const body = (await req.json()) as { episodeCount?: unknown; gateOnWhatIf?: unknown };
     const show = await db.show.findUnique({ where: { id }, include: { episodes: { select: { number: true } } } });
     if (!show) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    const maxExisting = show.episodes.reduce((m, e) => Math.max(m, e.number), 0);
-    if (count < maxExisting) {
-      return NextResponse.json({ error: `cannot shrink below existing episode ${maxExisting}` }, { status: 400 });
+
+    const data: { episodeCount?: number; gateOnWhatIf?: boolean } = {};
+
+    if (body.episodeCount !== undefined) {
+      const count = Math.round(Number(body.episodeCount));
+      if (!Number.isFinite(count) || count < 1 || count > MAX_EPISODES) {
+        return NextResponse.json({ error: `episodeCount must be an integer between 1 and ${MAX_EPISODES}` }, { status: 400 });
+      }
+      const maxExisting = show.episodes.reduce((m, e) => Math.max(m, e.number), 0);
+      if (count < maxExisting) {
+        return NextResponse.json({ error: `cannot shrink below existing episode ${maxExisting}` }, { status: 400 });
+      }
+      data.episodeCount = count;
     }
-    const updated = await db.show.update({ where: { id }, data: { episodeCount: count } });
-    return NextResponse.json({ show: { id: updated.id, episodeCount: updated.episodeCount } });
+
+    if (body.gateOnWhatIf !== undefined) {
+      if (typeof body.gateOnWhatIf !== 'boolean') {
+        return NextResponse.json({ error: 'gateOnWhatIf must be a boolean' }, { status: 400 });
+      }
+      data.gateOnWhatIf = body.gateOnWhatIf;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: 'nothing to update — send episodeCount and/or gateOnWhatIf' }, { status: 400 });
+    }
+
+    const updated = await db.show.update({ where: { id }, data });
+    return NextResponse.json({ show: { id: updated.id, episodeCount: updated.episodeCount, gateOnWhatIf: updated.gateOnWhatIf } });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'failed' }, { status: 500 });
   }

@@ -23,6 +23,21 @@ import { verifyPlanAgainstBrief, ComplianceRow } from './brief-compliance';
  */
 
 const SCREENED = ['DONE', 'RENDER_PARTIAL', 'ANALYZING'];
+const GATE_PASSING = new Set(['STRONG', 'PROMISING']);
+
+export interface WhatIfRunRow {
+  id: string;
+  arm: string;
+  epNumber: number;
+  cohort: string | null;
+  grade: string;
+  keepRate: number;
+  deltaPts: number;
+  beatCount: number;
+  fingerprint: string;
+  briefFp: string;
+  createdAt: string;
+}
 
 export interface WhatIfCurvePoint {
   beat: number;
@@ -304,5 +319,98 @@ export async function runWhatIf(
     grade: gradeOf(deltaKeepPts, keepRate, compliance),
   };
 
+  // persist the dry-run receipt — auditable input for the pre-flight gate
+  // (zero AI, tiny row; the full WhatIfResult stays in the API response)
+  await db.whatIfRun
+    .create({
+      data: {
+        showId,
+        arm: chosenArm,
+        epNumber,
+        cohort: brief.cohort ?? null,
+        grade: result.grade,
+        keepRate,
+        deltaPts: deltaKeepPts,
+        beatCount: beats.length,
+        fingerprint,
+        briefFp: brief.fingerprint,
+        planJson: JSON.stringify(beats),
+      },
+    })
+    .catch(() => undefined);
+
   return { result };
+}
+
+/* ----------------------------- pre-flight gate ------------------------------ */
+
+export interface GateStatus {
+  /** true when the gate applies to this request (armed + treatment arm + ep > 1) */
+  required: boolean;
+  /** the show's gateOnWhatIf flag, echoed for the UI */
+  armed: boolean;
+  /** latest passing whole-panel dry-run for this (arm, ep) graded against the CURRENT brief */
+  pass: WhatIfRunRow | null;
+  /** latest dry-run of any grade for this (arm, ep) — explains WHY the gate blocked */
+  latest: WhatIfRunRow | null;
+}
+
+function rowToWhatIfRun(r: {
+  id: string; arm: string; epNumber: number; cohort: string | null; grade: string;
+  keepRate: number; deltaPts: number; beatCount: number; fingerprint: string; briefFp: string; createdAt: Date;
+}): WhatIfRunRow {
+  return {
+    id: r.id,
+    arm: r.arm,
+    epNumber: r.epNumber,
+    cohort: r.cohort,
+    grade: r.grade,
+    keepRate: r.keepRate,
+    deltaPts: r.deltaPts,
+    beatCount: r.beatCount,
+    fingerprint: r.fingerprint,
+    briefFp: r.briefFp,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+/** Recent dry-run receipts for a show, newest first (optionally arm-filtered). */
+export async function listWhatIfRuns(showId: string, arm?: string, take = 12): Promise<WhatIfRunRow[]> {
+  const runs = await db.whatIfRun.findMany({
+    where: { showId, ...(arm ? { arm } : {}) },
+    orderBy: { createdAt: 'desc' },
+    take,
+  });
+  return runs.map(rowToWhatIfRun);
+}
+
+/**
+ * The pre-flight gate: when a show arms it, writing a treatment-arm episode
+ * (arm B, number > 1) requires a PASSING what-if dry-run for that exact
+ * (arm, episode) — STRONG or PROMISING — graded against the CURRENT brief
+ * fingerprint. A stale dry-run (brief moved on, or graded through a cohort
+ * lens) does not open the gate. The gate never applies to the control arm
+ * (A writes blind by experimental design) or the paired premiere.
+ */
+export async function checkWhatIfGate(showId: string, arm: string, epNumber: number): Promise<GateStatus> {
+  const show = await db.show.findUnique({ where: { id: showId } });
+  const armed = show?.gateOnWhatIf ?? false;
+  const required = armed && arm === 'B' && epNumber > 1;
+  const latestRow = await db.whatIfRun.findFirst({
+    where: { showId, arm, epNumber },
+    orderBy: { createdAt: 'desc' },
+  });
+  let pass: WhatIfRunRow | null = null;
+  if (required) {
+    const brief = await computeWriterBrief(showId, 'B');
+    if (brief && latestRow && GATE_PASSING.has(latestRow.grade) && latestRow.cohort === null && latestRow.briefFp === brief.fingerprint) {
+      pass = rowToWhatIfRun(latestRow);
+    }
+  }
+  return {
+    required,
+    armed,
+    pass,
+    latest: latestRow ? rowToWhatIfRun(latestRow) : null,
+  };
 }

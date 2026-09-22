@@ -33,6 +33,7 @@ import {
   PenLine,
   Repeat2,
   ShieldAlert,
+  ShieldCheck,
   UserRound,
   Users,
   XCircle,
@@ -179,6 +180,7 @@ export function WritersBrief({ showId, arm }: { showId: string; arm: string }) {
   const extendSeason = useExtendSeason(showId);
   const briefBundle = useBriefBundle(showId);
   const [extending, setExtending] = useState(false);
+  const gateArmed = showData?.show.gateOnWhatIf ?? false;
 
   // the episode this brief targets — compliance receipt once it exists with a plan.
   // When the brief has advanced past every written episode (nothing to verify yet),
@@ -437,6 +439,15 @@ export function WritersBrief({ showId, arm }: { showId: string; arm: string }) {
             <span className="text-[12px] leading-snug text-muted-foreground">
               Close the loop: hand this brief to the writer as prompt input for Ep{brief.nextEpisodeNumber} ({brief.arm})
               {needsExtend ? ' — extending the season first (max 6).' : '.'}
+              {gateArmed && (
+                <span
+                  className="mt-1 flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300"
+                  title="The pre-flight gate is armed: queueing this episode requires a passing what-if dry-run (STRONG/PROMISING) graded against THIS brief fingerprint."
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  gate armed — a passing dry-run against brief {fp8} opens this
+                </span>
+              )}
             </span>
             <Button size="sm" onClick={writeToWriter} disabled={busy} className="shrink-0">
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <PenLine className="h-3.5 w-3.5" aria-hidden />}

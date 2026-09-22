@@ -70,7 +70,7 @@ export interface EpisodeRow {
 }
 
 export interface ShowDetail {
-  show: ShowRow & { genre: string; visualStyle: string; budgetUsd: number; panelSize: number; createdAt: string };
+  show: ShowRow & { genre: string; visualStyle: string; budgetUsd: number; panelSize: number; createdAt: string; gateOnWhatIf: boolean };
   characters: CharacterRow[];
   entities: EntityRow[];
   episodes: EpisodeRow[];
@@ -382,6 +382,20 @@ export interface WhatIfResult {
   grade: 'STRONG' | 'PROMISING' | 'MIXED' | 'WEAK';
 }
 
+export interface WhatIfRunRow {
+  id: string;
+  arm: string;
+  epNumber: number;
+  cohort: string | null;
+  grade: 'STRONG' | 'PROMISING' | 'MIXED' | 'WEAK';
+  keepRate: number;
+  deltaPts: number;
+  beatCount: number;
+  fingerprint: string;
+  briefFp: string;
+  createdAt: string;
+}
+
 export interface WhatIfTemplate {
   arm: string;
   templateFrom: { episodeId: string; episodeNumber: number };
@@ -527,23 +541,27 @@ export function useBriefCompliance(episodeId: string | null) {
   });
 }
 
-/** What-if simulator template — the last screened episode's plan as the editable starting point. */
+/** What-if simulator template — the last screened episode's plan as the editable starting point,
+ *  plus the show's recent persisted dry-run receipts (the pre-flight gate's audit log). */
 export function useWhatIfTemplate(showId: string | null, arm: string) {
   return useQuery({
     queryKey: ['what-if-template', showId, arm],
-    queryFn: () => j<{ template: WhatIfTemplate }>(`/api/shows/${showId}/what-if?arm=${arm}`),
+    queryFn: () => j<{ template: WhatIfTemplate; runs: WhatIfRunRow[] }>(`/api/shows/${showId}/what-if?arm=${arm}`),
     enabled: Boolean(showId),
     staleTime: 30_000,
   });
 }
 
-/** What-if pre-flight dry-run — compliance + panel projection, zero spend. Manual fetch only. */
+/** What-if pre-flight dry-run — compliance + panel projection, zero spend. Manual fetch only.
+ *  Each run persists a receipt; refreshing the template query keeps the gate's audit log current. */
 export function useRunWhatIf(showId: string | null) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: { arm: string; plan: unknown; cohort?: string }) => {
       const { url, init } = post(`/api/shows/${showId}/what-if`, body);
       return j<{ result: WhatIfResult }>(url, init);
     },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['what-if-template', showId] }),
   });
 }
 
@@ -611,6 +629,19 @@ export function useExtendSeason(showId: string | null) {
     mutationFn: async (episodeCount: number) => {
       const { url, init } = post(`/api/shows/${showId}`, { episodeCount }, 'PATCH');
       return j<{ show: { id: string; episodeCount: number } }>(url, init);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['show', showId] }),
+  });
+}
+
+/** Toggle the pre-flight gate: when armed, arm-B episodes past the premiere
+ *  require a passing what-if dry-run graded against the current brief. */
+export function useSetGate(showId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (gateOnWhatIf: boolean) => {
+      const { url, init } = post(`/api/shows/${showId}`, { gateOnWhatIf }, 'PATCH');
+      return j<{ show: { id: string; gateOnWhatIf: boolean } }>(url, init);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['show', showId] }),
   });

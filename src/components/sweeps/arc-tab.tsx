@@ -226,7 +226,7 @@ function RhythmStrips({ arc, arm }: { arc: ArcData; arm: string }) {
                   Ep{ep.number}
                   {ep.retention !== null && <span className="ml-1 font-semibold text-foreground/70">{(ep.retention * 100).toFixed(0)}%</span>}
                 </div>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   {ep.beats.map((b) => (
                     <span
                       key={b.index}
@@ -444,7 +444,7 @@ export function ArcTab({ showId, mode }: { showId: string; mode: string }) {
 
   if (isLoading) {
     return (
-      <div className="grid gap-4" aria-busy="true" aria-label="Loading season arc">
+      <div className="grid grid-cols-1 gap-4" aria-busy="true" aria-label="Loading season arc">
         <Skeleton className="h-64 w-full" />
         <div className="grid gap-4 lg:grid-cols-2">
           <Skeleton className="h-52" />
@@ -473,7 +473,7 @@ export function ArcTab({ showId, mode }: { showId: string; mode: string }) {
   const dual = arc.arms.length > 1;
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <WritersBrief showId={showId} arm={arm} />
 
       <WhatIfSimulator showId={showId} arm={arm} />
@@ -515,7 +515,7 @@ export function ArcTab({ showId, mode }: { showId: string; mode: string }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <HookPayoffCard episodes={episodes} arm={arm} />
         <OpenLoopsCard episodes={episodes} arm={arm} />
       </div>

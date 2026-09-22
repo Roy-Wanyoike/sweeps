@@ -92,7 +92,7 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
       <div className="grid content-start gap-3">
         <Card>
           <CardHeader className="pb-3">
@@ -187,7 +187,7 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
         </Card>
       </div>
 
-      <div className="grid content-start gap-4">
+      <div className="grid min-w-0 grid-cols-1 content-start gap-4">
         {!ep || !current ? (
           <Card>
             <CardContent className="py-16 text-center text-muted-foreground">
@@ -311,7 +311,7 @@ function JobLogStrip({ logs }: { logs: EpisodeDetail['jobLogs'] }) {
   return (
     <div className="mt-3 max-h-24 overflow-y-auto rounded-md bg-muted/60 p-2 font-mono text-[10.5px] leading-relaxed text-muted-foreground scrollbar-thin">
       {logs.map((l) => (
-        <div key={l.id}>
+        <div key={l.id} className="break-all">
           <span className={l.status === 'ERROR' ? 'text-destructive' : l.status === 'WARN' ? 'text-amber-600' : ''}>
             [{l.status}]
           </span>{' '}

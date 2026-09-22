@@ -127,7 +127,7 @@ export function Header({ onShortcuts }: { onShortcuts?: () => void }) {
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           <Badge variant="outline" className="hidden lg:inline-flex" title={`Provider: ${health?.provider ?? '…'}, consistency gate ${health?.consistencyGate ? 'on' : 'off'}`}>
             {health?.provider === 'qwen' ? 'QWEN CLOUD' : 'SANDBOX AI'}
           </Badge>

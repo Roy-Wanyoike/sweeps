@@ -3,10 +3,14 @@
 import { useMemo, useState } from 'react';
 import {
   useRunWhatIf,
+  useSetGate,
+  useShow,
   useWhatIfTemplate,
   WhatIfResult,
+  WhatIfRunRow,
 } from '@/lib/queries';
 import { ArchetypeDot } from '@/lib/archetype-colors';
+import { useSweeps } from '@/lib/store';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +36,9 @@ import {
   Minus,
   Play,
   RotateCcw,
+  ScrollText,
+  ShieldCheck,
+  ShieldOff,
   Timer,
   XCircle,
   X,
@@ -76,6 +83,21 @@ const GRADE_STYLE: Record<WhatIfResult['grade'], { pill: string; blurb: string }
     blurb: 'The panel bails early — rework the outline here, in dry-run, before it costs anything.',
   },
 };
+
+const GRADE_CHIP: Record<WhatIfRunRow['grade'], string> = {
+  STRONG: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  PROMISING: 'bg-primary/10 text-primary dark:text-primary',
+  MIXED: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  WEAK: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+};
+
+function timeAgo(iso: string): string {
+  const s = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  return `${Math.round(s / 86400)}d ago`;
+}
 
 interface CurveRow {
   beat: number;
@@ -125,6 +147,11 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
   const [dirty, setDirty] = useState(false);
   const { data: templateData, isLoading: templateLoading } = useWhatIfTemplate(showId, arm);
   const runWhatIf = useRunWhatIf(showId);
+  const { data: showData } = useShow(showId);
+  const setGate = useSetGate(showId);
+  const readonly = useSweeps((s) => s.readonly);
+  const gateArmed = showData?.show.gateOnWhatIf ?? false;
+  const runs: WhatIfRunRow[] = templateData?.runs ?? [];
 
   // a result graded against another arm's brief+memories stays visible but is
   // explicitly marked stale — re-run to re-grade for the selected arm
@@ -230,6 +257,21 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
 
   const grade = result ? GRADE_STYLE[result.grade] : null;
   const fp8 = result?.fingerprint.slice(0, 8) ?? '';
+  // gate-eligible: this dry-run would open the pre-flight gate for its episode
+  const gateEligible = result !== null && !result.briefCohort && (result.grade === 'STRONG' || result.grade === 'PROMISING');
+
+  const toggleGate = () => {
+    setGate.mutate(!gateArmed, {
+      onSuccess: (res) => {
+        toast.success(res.show.gateOnWhatIf ? 'Pre-flight gate ARMED' : 'Pre-flight gate disarmed', {
+          description: res.show.gateOnWhatIf
+            ? 'Arm-B episodes past the premiere now require a passing dry-run (STRONG/PROMISING) graded against the current brief.'
+            : 'Episodes can be queued without a pre-flight dry-run again.',
+        });
+      },
+      onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to toggle the gate'),
+    });
+  };
 
   return (
     <Card className="overflow-hidden border-teal-500/20">
@@ -263,6 +305,46 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
         </div>
       </CardHeader>
       <CardContent className="grid gap-3">
+        {/* pre-flight gate — governance row */}
+        <div
+          className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
+            gateArmed ? 'border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 to-teal-500/5' : 'border-dashed bg-muted/20'
+          }`}
+          data-testid="what-if-gate"
+        >
+          {gateArmed ? (
+            <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          ) : (
+            <ShieldOff className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          )}
+          <div className="min-w-0 flex-1 text-[12px] leading-snug">
+            <span className="font-semibold">Pre-flight gate</span>{' '}
+            <span className="text-muted-foreground">
+              {gateArmed
+                ? 'armed — arm-B episodes past the premiere queue ONLY after a passing dry-run graded against the current brief.'
+                : 'disarmed — arm the gate so arm-B episodes queue only after a passing dry-run.'}
+            </span>
+          </div>
+          <button
+            onClick={toggleGate}
+            disabled={setGate.isPending || readonly}
+            role="switch"
+            aria-checked={gateArmed}
+            aria-label="Toggle pre-flight gate"
+            className={`relative inline-flex h-5.5 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors ${
+              gateArmed ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-stone-300 dark:bg-stone-700'
+            }`}
+          >
+            <span
+              className={`inline-block h-4.5 w-4.5 rounded-full bg-white shadow transition-transform ${gateArmed ? 'translate-x-5' : 'translate-x-0'}`}
+              aria-hidden
+            />
+          </button>
+          <Badge variant="outline" className={`text-[9px] ${gateArmed ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'}`}>
+            {gateArmed ? 'governance on' : 'open spend'}
+          </Badge>
+        </div>
+
         <div className="relative">
           <textarea
             value={planText}
@@ -365,6 +447,14 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
                 {(result.simulation.keepRate * 100).toFixed(1)}% keep rate
               </span>
               <DeltaBadge pts={result.delta.keepRatePts} />
+              {gateEligible && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                  title="This dry-run is persisted as a receipt and would open the pre-flight gate for this episode (whole-panel brief, passing grade)."
+                >
+                  <ShieldCheck className="h-3 w-3" aria-hidden /> gate-eligible receipt
+                </span>
+              )}
               <span className="text-[11px] text-muted-foreground">
                 vs Ep{result.baseline.episodeNumber} baseline ({(result.baseline.keepRate * 100).toFixed(1)}% · {result.baseline.panel} viewers)
               </span>
@@ -529,6 +619,48 @@ export function WhatIfSimulator({ showId, arm }: { showId: string; arm: string }
               The panel watched this plan in dry-run — no render dollars, no memory writes, nothing queued. Same plan + same
               memories always reproduces these numbers (fp {fp8}).
             </p>
+          </div>
+        )}
+
+        {/* recent dry-run receipts — the gate's audit log */}
+        {runs.length > 0 && (
+          <div>
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
+              <ScrollText className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">dry-run receipts</span>
+              <span className="text-[10px] text-muted-foreground/70">— persisted pre-flight log{gateArmed ? ' · gate reads these' : ''}</span>
+            </div>
+            <div className="grid gap-1 sm:grid-cols-2">
+              {runs.slice(0, 6).map((r) => {
+                const passing = r.grade === 'STRONG' || r.grade === 'PROMISING';
+                return (
+                  <div
+                    key={r.id}
+                    className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] ${
+                      gateArmed && passing && r.cohort === null ? 'border-emerald-500/30 bg-emerald-500/5' : 'bg-background/60'
+                    }`}
+                    title={`Plan: ${r.beatCount} beats · brief fp ${r.briefFp.slice(0, 8)} · run fp ${r.fingerprint.slice(0, 12)}`}
+                  >
+                    <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${GRADE_CHIP[r.grade]}`}>
+                      {r.grade}
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      Ep{r.epNumber} · {r.arm}
+                    </span>
+                    <span className="font-mono">{(r.keepRate * 100).toFixed(1)}%</span>
+                    <span className={`font-mono ${r.deltaPts > 0.01 ? 'text-emerald-600 dark:text-emerald-400' : r.deltaPts < -0.01 ? 'text-rose-600 dark:text-rose-400' : 'text-stone-500'}`}>
+                      {r.deltaPts > 0 ? '+' : ''}
+                      {r.deltaPts.toFixed(1)}
+                    </span>
+                    {r.cohort && <Badge variant="outline" className="px-1 py-0 text-[9px] text-muted-foreground">lens</Badge>}
+                    <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/70">
+                      {gateArmed && passing && r.cohort === null && <ShieldCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden />}
+                      fp {r.fingerprint.slice(0, 6)} · {timeAgo(r.createdAt)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </CardContent>

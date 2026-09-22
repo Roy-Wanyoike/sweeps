@@ -1,10 +1,9 @@
 import { db } from '@/lib/db';
-import { Beat, jparse } from '@/lib/contracts';
+import { Beat, ViewerPersona, jparse } from '@/lib/contracts';
 import { Rng, clamp, hashSeed } from '@/lib/sim/rng';
 import { computeMetrics } from './analytics';
 import { WriteCtx, proposeVariants, fallbackVariants } from './writer';
-import { singleBeatSatisfaction } from './audience';
-import { ViewerPersona } from '@/lib/contracts';
+import { microScreenBeat } from './audience';
 
 export interface SlotDirective {
   slotIndex: number;
@@ -17,6 +16,13 @@ export interface SlotDirective {
  * retention cliffs, generate two variant beats per cliff, micro-screen them on a
  * viewer subsample (text-only, cheap), and persist the winning variant as a
  * directive for the NEXT episode.
+ *
+ * The micro-screen is MEMORY-AWARE: each sampled viewer scores the variants
+ * through microScreenBeat() with their own arm-scoped FSRS memories, their real
+ * last smoothed satisfaction from the previous screening, and the loyalty-coupled
+ * returning-hook recall — the same machinery the full panel screening uses, in
+ * miniature. Rewards stay on the mean-satisfaction scale (discriminative at
+ * n=40); keep and hook-recall counts ride along as evidence.
  */
 export async function prepareTreatmentDirectives(
   ctx: WriteCtx,
@@ -39,6 +45,26 @@ export async function prepareTreatmentDirectives(
   const viewers = await db.viewer.findMany({ where: { showId: ctx.show.id }, take: 60 });
   if (viewers.length === 0) return [];
 
+  // per-viewer micro-screen context: real last smoothed satisfaction from the
+  // previous episode's screening + the viewer's arm-scoped FSRS memories
+  const prevScreenings = await db.screening.findMany({ where: { episodeId: prev.id } });
+  const lastSByViewer = new Map<string, number>();
+  for (const s of prevScreenings) {
+    const events = jparse<{ beat: number; s: number; S: number }[]>(s.events, []);
+    const lastS = events.length > 0 ? events[events.length - 1].S : null;
+    if (lastS !== null) lastSByViewer.set(s.viewerId, lastS);
+  }
+  const subsample = viewers.slice(0, 40);
+  const memRows = await db.viewerMemory.findMany({
+    where: { viewerId: { in: subsample.map((v) => v.id) }, arm: 'B' },
+  });
+  const memoriesByViewer = new Map<string, { key: string; content: string; stability: number; lastSeenEp: number }[]>();
+  for (const m of memRows) {
+    const list = memoriesByViewer.get(m.viewerId) ?? [];
+    list.push({ key: m.key, content: m.content, stability: m.stability, lastSeenEp: m.lastSeenEp });
+    memoriesByViewer.set(m.viewerId, list);
+  }
+
   for (const cliff of worst) {
     const beat = prevPlan[cliff.beat];
     if (!beat) continue;
@@ -54,21 +80,33 @@ export async function prepareTreatmentDirectives(
     }
     const [variantA, variantB] = variants;
 
-    // micro-screen on a subsample of 40 viewers (text-only, deterministic)
-    const subsample = viewers.slice(0, 40);
+    // memory-aware micro-screen on the 40-viewer subsample (pure, deterministic)
     let rewardA = 0;
     let rewardB = 0;
+    let keepsA = 0;
+    let keepsB = 0;
+    let recallA = 0;
+    let recallB = 0;
+    let n = 0;
     for (const v of subsample) {
       const persona = jparse<ViewerPersona>(v.persona, null as unknown as ViewerPersona);
       if (!persona) continue;
-      rewardA += singleBeatSatisfaction(persona, variantA, 0.3);
-      rewardB += singleBeatSatisfaction(persona, variantB, 0.3);
+      const lastS = lastSByViewer.get(v.id) ?? 0.35 + 0.3 * persona.loyalty;
+      const memories = memoriesByViewer.get(v.id) ?? [];
+      const outA = microScreenBeat(persona, memories, lastS, variantA, cliff.beat, nextEpNumber);
+      const outB = microScreenBeat(persona, memories, lastS, variantB, cliff.beat, nextEpNumber);
+      rewardA += outA.satisfaction;
+      rewardB += outB.satisfaction;
+      if (outA.keep) keepsA += 1;
+      if (outB.keep) keepsB += 1;
+      if (outA.recalledHook) recallA += 1;
+      if (outB.recalledHook) recallB += 1;
+      n += 1;
     }
-    rewardA = Number((rewardA / Math.max(1, subsample.length)).toFixed(4));
-    rewardB = Number((rewardB / Math.max(1, subsample.length)).toFixed(4));
+    rewardA = Number((rewardA / Math.max(1, n)).toFixed(4));
+    rewardB = Number((rewardB / Math.max(1, n)).toFixed(4));
 
     // Thompson sampling with Beta(1 + successes, 1 + failures)
-    const n = Math.max(1, subsample.length);
     const alphaA = 1 + rewardA * n;
     const betaA = 1 + n - rewardA * n;
     const alphaB = 1 + rewardB * n;
@@ -79,6 +117,21 @@ export async function prepareTreatmentDirectives(
     const chosen: 'A' | 'B' = sampleA >= sampleB ? 'A' : 'B';
 
     const winner = chosen === 'A' ? variantA : variantB;
+    const evidence = {
+      n,
+      prevCliffDelta: cliff.delta,
+      prevCliffQuote: cliff.quote ?? null,
+      alphaA,
+      betaA,
+      alphaB,
+      betaB,
+      method: 'thompson_sampling_memory',
+      keepsA,
+      keepsB,
+      recallA,
+      recallB,
+      memoryAware: true,
+    };
     // one receipt per (show, episode, slot) — retries update instead of duplicating
     await db.experiment.upsert({
       where: { showId_epNumber_slotIndex: { showId: ctx.show.id, epNumber: nextEpNumber, slotIndex: cliff.beat } },
@@ -91,16 +144,7 @@ export async function prepareTreatmentDirectives(
         rewardA,
         rewardB,
         chosen,
-        evidence: JSON.stringify({
-          n,
-          prevCliffDelta: cliff.delta,
-          prevCliffQuote: cliff.quote ?? null,
-          alphaA,
-          betaA,
-          alphaB,
-          betaB,
-          method: 'thompson_sampling',
-        }),
+        evidence: JSON.stringify(evidence),
       },
       update: {
         variantA: JSON.stringify(variantA),
@@ -108,23 +152,14 @@ export async function prepareTreatmentDirectives(
         rewardA,
         rewardB,
         chosen,
-        evidence: JSON.stringify({
-          n,
-          prevCliffDelta: cliff.delta,
-          prevCliffQuote: cliff.quote ?? null,
-          alphaA,
-          betaA,
-          alphaB,
-          betaB,
-          method: 'thompson_sampling',
-        }),
+        evidence: JSON.stringify(evidence),
       },
     });
 
     directives.push({
       slotIndex: cliff.beat,
       beat: { ...winner, index: cliff.beat, cast: winner.cast.length > 0 ? winner.cast : beat.cast, location: beat.location },
-      rationale: `cliff @beat ${cliff.beat} (${(cliff.delta * 100).toFixed(1)} pts) → variant ${chosen} (rewardA=${rewardA}, rewardB=${rewardB})`,
+      rationale: `cliff @beat ${cliff.beat} (${(cliff.delta * 100).toFixed(1)} pts) → variant ${chosen} (memory-aware sat A=${rewardA}, B=${rewardB}; keeps ${keepsA}/${n} vs ${keepsB}/${n})`,
     });
   }
   return directives;

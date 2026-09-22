@@ -81,8 +81,8 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
   }, [personas, query]);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <Card className="lg:col-span-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <Card className="min-w-0 lg:col-span-2">
         <CardHeader className="pb-3">
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -96,7 +96,7 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
             <div className="flex items-center gap-2">
               {/* sentinel keeps the Select permanently controlled across async episode loads */}
               <Select value={currentEpId ?? NO_EP} onValueChange={(v) => v !== NO_EP && setEpId(v)}>
-                <SelectTrigger size="sm" className="w-40" aria-label="Select episode">
+                <SelectTrigger size="sm" className="w-28 sm:w-40" aria-label="Select episode">
                   <SelectValue placeholder="Episode" />
                 </SelectTrigger>
                 <SelectContent>
@@ -182,7 +182,7 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
       </Card>
       <RateDialog open={rateOpen} onOpenChange={setRateOpen} episodeId={currentEpId} episodeLabel={`Ep${doneEpisodes.find((e) => e.id === currentEpId)?.number ?? ''} (${doneEpisodes.find((e) => e.id === currentEpId)?.arm ?? ''})`} />
 
-      <div className="grid content-start gap-4">
+      <div className="grid min-w-0 grid-cols-1 content-start gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">

@@ -19,6 +19,7 @@ model Show {
   panelSize    Int           @default(200)
   seed         Int
   status       String        @default("SETUP") // SETUP | RUNNING | DONE
+  gateOnWhatIf Boolean       @default(false) // pre-flight governance: arm-B episodes require a passing what-if dry-run first
   lore         String? // JSON: committed lore { key: value } — compiler source of truth
   createdAt    DateTime      @default(now())
   characters   Character[]
@@ -27,6 +28,7 @@ model Show {
   viewers      Viewer[]
   experiments  Experiment[]
   costs        CostEntry[]
+  whatIfRuns   WhatIfRun[]
 }
 
 model Character {
@@ -176,6 +178,25 @@ model JobLog {
   status    String // STARTED|OK|WARN|ERROR
   detail    String?
   createdAt DateTime @default(now())
+}
+
+model WhatIfRun {
+  id           String   @id @default(cuid())
+  showId       String
+  show         Show     @relation(fields: [showId], references: [id])
+  arm          String   // 'A' | 'B'
+  epNumber     Int      // the episode the simulated plan targets
+  cohort       String?  // non-null = graded through a cohort lens (not gate-eligible)
+  grade        String   // STRONG | PROMISING | MIXED | WEAK
+  keepRate     Float
+  deltaPts     Float
+  beatCount    Int
+  fingerprint  String   // sha256 over (showId, arm, epNumber, briefFp, beats)
+  briefFp      String   // the brief fingerprint the plan was graded against
+  planJson     String   // JSON Beat[] — the exact plan that was simulated
+  createdAt    DateTime @default(now())
+
+  @@index([showId, arm, epNumber])
 }
 
 model HumanReaction {

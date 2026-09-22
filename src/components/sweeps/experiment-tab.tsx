@@ -241,8 +241,8 @@ export function ExperimentTab({ showId }: { showId: string }) {
   }));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <Card className="lg:col-span-1">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <Card className="min-w-0 lg:col-span-1">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Scale className="h-4 w-4 text-primary" aria-hidden /> The verdict
@@ -323,13 +323,14 @@ export function ExperimentTab({ showId }: { showId: string }) {
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-2">
+      <Card className="min-w-0 lg:col-span-2">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <FlaskConical className="h-4 w-4 text-primary" aria-hidden /> Experiment timeline
           </CardTitle>
           <CardDescription>
-            Thompson-sampling decisions: two variants micro-screened on 40 viewers, winner written into the next episode
+            Thompson-sampling decisions: two variants micro-screened on 40 viewers through their own FSRS memories and last
+            satisfaction state — winner written into the next episode
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -344,6 +345,8 @@ export function ExperimentTab({ showId }: { showId: string }) {
                 const rb = e.rewardB ?? 0;
                 const total = Math.max(ra + rb, 0.0001);
                 const pctB = (rb / total) * 100;
+                const memoryAware = String(e.evidence.method ?? '') === 'thompson_sampling_memory';
+                const n = Number(e.evidence.n ?? 0) || null;
                 return (
                   <div key={e.id} className="rounded-lg border p-3">
                     <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -351,15 +354,32 @@ export function ExperimentTab({ showId }: { showId: string }) {
                         EP{e.epNumber} · slot {e.slotIndex}
                       </Badge>
                       <span className="text-muted-foreground">
-                        A {(e.rewardA ?? 0).toFixed(3)} vs B {(e.rewardB ?? 0).toFixed(3)}
+                        {memoryAware ? 'sat ' : ''}A {(e.rewardA ?? 0).toFixed(3)} vs B {(e.rewardB ?? 0).toFixed(3)}
                       </span>
                       <Badge className={e.chosen === 'B' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400' : 'bg-teal-500/15 text-teal-700 dark:text-teal-400'}>
                         chose {e.chosen}
                       </Badge>
+                      {memoryAware && (
+                        <Badge variant="outline" className="border-teal-500/40 text-[9px] font-mono text-teal-700 dark:text-teal-300" title="Each sampled viewer scored the variants through their own FSRS memories, real last satisfaction state, and loyalty-coupled hook recall.">
+                          memory-aware
+                        </Badge>
+                      )}
                       <span className="ml-auto text-[11px] text-muted-foreground">
                         n={String(e.evidence.n ?? '—')} · prev cliff {(Number(e.evidence.prevCliffDelta ?? 0) * 100).toFixed(1)} pts
                       </span>
                     </div>
+                    {memoryAware && n !== null && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-stone-500/10 px-1.5 py-0.5 font-mono text-[10px] text-stone-700 dark:text-stone-300" title="Viewers whose smoothed satisfaction would hold above their own churn threshold after this beat">
+                          keeps A {Number(e.evidence.keepsA ?? 0)}/{n} · B {Number(e.evidence.keepsB ?? 0)}/{n}
+                        </span>
+                        {(Number(e.evidence.recallA ?? 0) > 0 || Number(e.evidence.recallB ?? 0) > 0) && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/10 px-1.5 py-0.5 font-mono text-[10px] text-orange-800 dark:text-orange-300" title="Sampled viewers whose loyalty-coupled memory actually recalled the previous cliffhanger (loyalty > 0.64)">
+                            hook recall A {Number(e.evidence.recallA ?? 0)} · B {Number(e.evidence.recallB ?? 0)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
                       <div className="h-full bg-teal-500/70" style={{ width: `${100 - pctB}%` }} title={`A ${ra.toFixed(3)}`} />
                       <div className="h-full bg-amber-500/80" style={{ width: `${pctB}%` }} title={`B ${rb.toFixed(3)}`} />
@@ -375,7 +395,7 @@ export function ExperimentTab({ showId }: { showId: string }) {
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-3">
+      <Card className="min-w-0 lg:col-span-3">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <ReceiptText className="h-4 w-4 text-primary" aria-hidden /> Arm-by-episode receipt
@@ -388,11 +408,12 @@ export function ExperimentTab({ showId }: { showId: string }) {
           {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No finished episodes yet.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Episode</TableHead>
-                  <TableHead className="text-right">A retention</TableHead>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Episode</TableHead>
+                    <TableHead className="text-right">A retention</TableHead>
                   <TableHead className="text-right">B retention</TableHead>
                   <TableHead className="text-right">Δ (B − A)</TableHead>
                   <TableHead className="text-right">Spend A</TableHead>
@@ -461,6 +482,7 @@ export function ExperimentTab({ showId }: { showId: string }) {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -380,6 +380,21 @@ export async function enqueueDemo(showId: string): Promise<number> {
   const show = await db.show.findUnique({ where: { id: showId } });
   if (!show) return 0;
   await ensurePanel(showId);
+  // the full demo is the autonomous showcase: if the pre-flight gate is armed,
+  // bypass it but leave an honest WARN receipt so the audit log explains why
+  // arm-B episodes were written without a passing dry-run.
+  if (show.gateOnWhatIf) {
+    await db.jobLog
+      .create({
+        data: {
+          showId,
+          step: 'GATE',
+          status: 'WARN',
+          detail: 'pre-flight gate bypassed by the full-demo run (autonomous showcase) — arm-B episodes queue without a passing dry-run',
+        },
+      })
+      .catch(() => undefined);
+  }
   const jobs: Job[] = [];
   const arms = show.mode === 'DUAL' ? ['A', 'B'] : ['A'];
   for (let n = 1; n <= show.episodeCount; n++) {

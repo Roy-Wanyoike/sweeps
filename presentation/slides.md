@@ -116,10 +116,11 @@ Every violation ships a machine-actionable fix the Writer auto-applies — bound
 | A | “cold open on the letter” | Beta(9, 12) | 0.41 | 20 |
 | **B ✓ CHOSEN** | “open on the pursuit” | Beta(15, 7) | **0.68** | 20 |
 
-evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors · directive injected into **EP3 · beat 7**
+evidence → **40-viewer memory-aware** micro-screen (each viewer scores through their own FSRS memories + last satisfaction) · Thompson draw over Beta posteriors · directive injected into the next episode
 
 - Cheap by construction: text-only micro-screening = seconds of FAST-tier inference, not re-render dollars.
-- Auditable by default: n, rewards, posterior, directive — persisted to the Experiment table.
+- Viewer-differentiated by design: keep counts and hook-recall counts ride along as persisted evidence (`memory-aware` rows on the Experiment tab).
+- Auditable by default: n, rewards, posterior, keeps, recalls, directive — persisted to the Experiment table.
 
 ---
 
@@ -132,23 +133,24 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 - When the episode lands, a **compliance receipt** verifies every directive’s machine contract against the finished plan: callback title present in the first beats ✓ · beat 0 re-states the cliffhanger ✓ · first-half beats under the churn-derived length cap ✓ · detail density for the weakest cohort ✓. Live run: **3/3 honored**.
 - Misses are shown, not hidden — with an LLM writer the receipt becomes an honest quality gate, not decoration.
 - **Cohort lens**: re-write the same brief through the Skimmer’s eyes — their own churn curve picks the protect-beat. Same season, different writer’s room.
+- **Pre-flight gate (governance, optional)**: arm the gate and arm-B episodes are refused with 428 unless a passing dry-run (STRONG/PROMISING) exists for that exact episode against the *current* brief fingerprint. Every dry-run persists a receipt — the gate’s audit log is on the card. Ep5 (B) was written through the gate; the control arm is never gated.
 
 ---
 
 ## 08 · Dual-arm proof — one show, two fates
 
-> **“Measured honesty: the loop’s cost edge (−12%) held for a full season; retention landed within noise.”**
+> **“Measured honesty: the loop’s cost edge (−13%) held for a full season; retention landed within noise.”**
 > `MEASURED — SEED 92067772 · PANEL 200`
 
 - **Arm A — writer-only control** (never sees the audience) vs **Arm B — full loop** (cliffs + viewer quotes + Thompson-sampled variants + the Writer’s Brief fed back).
-- Same seed · same show bible · same 200-viewer panel · 4 episodes per arm (season extended live).
-- Measured KM survival: B led at EP2–EP3 (70.0% / 69.5% vs A 65.0%); EP4 — the first brief-fed episode — landed at 64% vs 65%. The dashboard reports the wash-out instead of hiding it.
+- Same seed · same show bible · same 200-viewer panel · 5 episodes per arm (season extended live).
+- Measured KM survival: B led at EP2–EP3 (70.0% / 69.5% vs A 65.0%); EP4–EP5 landed at 64.0–64.5% vs 65.0%. The dashboard reports the wash-out instead of hiding it.
 
 | Metric | Arm A | Arm B |
 |---|---|---|
-| Retention EP1→EP4 | −6.5 pts | −7.5 pts (**lift −1.0 pt — honest noise**) |
-| Cost / retained viewer | $0.0017 | **$0.0015** (−12%, whole season) |
-| Cliffs / episode (avg) | 7.3 | **6.5** |
+| Retention EP1→EP5 | −6.5 pts | −7.0 pts (**lift −0.5 pt — honest noise**) |
+| Cost / retained viewer | $0.0016 | **$0.0014** (−13%, whole season) |
+| Avg spend / episode | $0.217 | **$0.193** |
 | Panel | 200 | 200 |
 
 ---
@@ -160,11 +162,11 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 | | Value |
 |---|---|
 | Compile-gate rejects — `fixtures/bad-beat.json` | **$0.00 spent · ~$0.72 saved** |
-| Per-episode spend (stage-capped) | A $0.231 · B $0.211 / episode — run total $1.81 of $5.00 |
-| **Cost per retained viewer** | **Arm A $0.0017 · Arm B $0.0015** |
-| Retention Δ EP1→EP4 | A −6.5 pts · B −7.5 pts · **lift −1.0 pt (honest)** |
-| Panel throughput | 200 personas × 8 episodes |
-| Reproducibility | same seed → identical curves |
+| Per-episode spend (stage-capped) | A $0.217 · B $0.193 / episode — run total $2.10 of $5.00 |
+| **Cost per retained viewer** | **Arm A $0.0016 · Arm B $0.0014** |
+| Retention Δ EP1→EP5 | A −6.5 pts · B −7.0 pts · **lift −0.5 pt (honest)** |
+| Panel throughput | 200 personas × 10 episodes |
+| Reproducibility | same seed → identical curves (receipt: 10/10 episodes byte-identical) |
 
 - **200** — panel size, persona-agents: 12 archetypes × seeded jitter, decaying memory + churn threshold each.
 - **0×** — `Math.random` in sim paths: `mulberry32(show.seed, viewer.seed, ep, beat)` — same seed replays byte-identical curves.
@@ -207,9 +209,9 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 | 0:50 | **REVEAL** | The Gate: bad fixture rejected — 2 ERRORs + 1 WARN, $0.00 spent; repair loop counts down live. |
 | 1:20 | **TWIST** | 200 personas screen Ep1: retention curve draws, comment wall fills, memory inspector decays. |
 | 1:50 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying, hook payoff graded — then the **writer’s brief** for the next episode. |
-| 2:20 | **PAYOFF** | **“Write Ep4 from this brief”** → writer honors it → **LOOP CLOSED · 3/3 HONORED** receipt; season extended live. Determinism receipt re-verifies 8 episodes byte-for-byte, signed. |
-| 2:45 | **WHAT-IF** | The judge’s turn: paste any plan into the **what-if simulator** — 200 personas dry-run it in ~200 ms, grade drops, check the contracts — **$0.000 spent, nothing written**. Iterate before the dollars move. |
-| 3:00 | **CLIFFHANGER** | Thompson picks the variant; dual-arm table lands (honest verdict, cost edge −12%); close on “measure attention, not output.” |
+| 2:20 | **PAYOFF** | **“Write Ep5 from this brief”** → pre-flight gate checks the passing dry-run receipt → writer honors the brief → **LOOP CLOSED · 3/3 HONORED** receipt; season extended live. Determinism receipt re-verifies 10 episodes byte-for-byte, signed. |
+| 2:45 | **WHAT-IF** | The judge’s turn: paste any plan into the **what-if simulator** — 200 personas dry-run it in ~200 ms, grade drops, check the contracts — **$0.000 spent, nothing written**. Arm the **pre-flight gate** and no arm-B episode queues without a passing receipt. |
+| 3:00 | **CLIFFHANGER** | Thompson picks the variant (memory-aware micro-screen); dual-arm table lands (honest verdict, cost edge −13%); close on “measure attention, not output.” |
 
 Single screen recording, one take — ends on the live dashboard, DUAL mode running.
 

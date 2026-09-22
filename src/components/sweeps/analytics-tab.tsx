@@ -147,8 +147,8 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card className="lg:col-span-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <Card className="min-w-0 lg:col-span-2">
         <CardHeader className="pb-2">
           <div>
             <CardTitle>Retention curves — every episode, both arms</CardTitle>
@@ -205,7 +205,7 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-2">
+      <Card className="min-w-0 lg:col-span-2">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Grid3X3 className="h-4 w-4 text-primary" aria-hidden /> Beat retention heatmap
@@ -259,7 +259,7 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-2">
+      <Card className="min-w-0 lg:col-span-2">
         <CardHeader className="pb-2">
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -292,7 +292,7 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
           {!cohortEp ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Run episodes to explore cohorts.</p>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={cohortChartData} margin={{ top: 5, right: 12, bottom: 0, left: -18 }}>
@@ -419,6 +419,7 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
                   ))}
                 </div>
               )}
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -453,6 +454,7 @@ export function AnalyticsTab({ detail }: { detail: ShowDetail }) {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </>
           )}
         </CardContent>

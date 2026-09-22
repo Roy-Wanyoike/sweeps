@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server';
-import { getWhatIfTemplate, runWhatIf } from '@/services/what-if';
+import { getWhatIfTemplate, listWhatIfRuns, runWhatIf } from '@/services/what-if';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/shows/[id]/what-if?arm=A|B
  *   — the what-if starting point: the last screened episode's plan as an
- *     editable template, plus the current brief it would be graded against.
+ *     editable template, the current brief it would be graded against, and the
+ *     show's recent persisted dry-run receipts (the pre-flight gate's audit log).
  *
  * POST /api/shows/[id]/what-if   { arm, plan, cohort? }
  *   — the pre-flight dry-run: validate the plan against the writer contract,
  *     verify brief compliance deterministically, then let the whole simulated
- *     panel watch it against their arm-scoped memories. Zero AI, zero writes,
- *     zero spend — same plan + same memories always yield the same numbers.
+ *     panel watch it against their arm-scoped memories. Zero AI, zero spend —
+ *     same plan + same memories always yield the same numbers. Each run is
+ *     persisted as a receipt so the gate's decisions are auditable.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -21,7 +23,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const arm = url.searchParams.get('arm') ?? undefined;
     const template = await getWhatIfTemplate(id, arm ?? undefined);
     if (!template) return NextResponse.json({ error: 'no screened episodes to template from' }, { status: 404 });
-    return NextResponse.json({ template });
+    const runs = await listWhatIfRuns(id, arm ?? undefined);
+    return NextResponse.json({ template, runs });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'failed' }, { status: 500 });
   }
