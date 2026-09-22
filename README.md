@@ -127,6 +127,21 @@ DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
   churn curve and the directives carry that lens — the same measured season, a different writer's
   room (`GET /api/shows/:id/brief?arm=B&cohort=Skimmer`). Episodes written from a brief wear a
   `brief <fp8>` badge on the Episodes tab.
+- **What-if brief simulator — a pre-flight check before render dollars move.** On the Arc tab below
+  the brief: paste (or one-click load) a hypothetical EpN plan as JSON and the whole 200-viewer
+  panel watches it in dry-run — the plan is validated against the writer's zod contract, checked
+  against the current brief's machine contracts with the *same* deterministic verifier that grades
+  real episodes, and simulated against every persona's arm-scoped FSRS memories. You get a grade
+  (STRONG / PROMISING / MIXED / WEAK), the projected keep-rate delta in points vs the arm's last
+  screened episode, a projected-vs-baseline retention curve, the exact beats where the panel bails,
+  per-cohort movers (which archetype gained or lost vs baseline), per-directive compliance rows and
+  a downloadable markdown report — all fingerprinted, reproducible, and **$0.000 spent**: no LLM,
+  no writes, nothing queued. Iterate the outline in dry-run until the panel stays; only then hit
+  render. (`POST /api/shows/:id/what-if`, `GET /api/shows/:id/what-if?arm=B` for the template.)
+- **Writers-room brief bundle.** One click downloads every lens of the current brief — the
+  whole-panel directive set plus one section per cohort lens — as a single markdown document with a
+  lens/fingerprint table (`GET /api/shows/:id/brief-bundle?arm=A|B`). The writers' room reads the
+  whole directive set side by side; every section carries its own deterministic fingerprint.
 - **Per-viewer journey timeline.** Select any viewer in the Memory inspector to see their episode-by-
   episode satisfaction trace S(t) as an SVG sparkline with their personal churn threshold (dashed
   amber), a drop marker where they bailed, amber pips where a memory was recalled, and their in-voice

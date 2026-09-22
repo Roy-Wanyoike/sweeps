@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { Beat, jparse } from '@/lib/contracts';
-import { knownLocationsForArm, BriefCheck, BriefDirective } from './arc';
+import { knownLocationsForArm, BriefCheck, BriefDirective, WriterBrief } from './arc';
 
 /**
  * Directive-compliance verifier — the deterministic half of the loop closure.
@@ -42,35 +42,26 @@ export interface BriefCompliance {
   allHonored: boolean;
 }
 
-function textOf(b: Beat): string {
-  return [b.title, ...b.dialogue.map((d) => d.line), b.purpose].join(' ');
+export interface VerifyOutcome {
+  rows: ComplianceRow[];
+  honoredCount: number;
+  honoredCheckable: number;
+  checkable: number;
+  total: number;
+  allHonored: boolean;
 }
 
-/** loose natural-language containment: normalize, then substring match */
-function mentions(haystack: string, needle: string): boolean {
-  const norm = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9 ]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  return norm(haystack).includes(norm(needle));
-}
-
-export async function verifyBriefCompliance(episodeId: string): Promise<BriefCompliance | null> {
-  const episode = await db.episode.findUnique({ where: { id: episodeId } });
-  if (!episode || !episode.briefJson) return null;
-  const brief = jparse<(import('./arc').WriterBrief & { directives: (BriefDirective & { check?: BriefCheck })[] }) | null>(
-    episode.briefJson,
-    null
-  );
-  if (!brief) return null;
-
-  const stored = jparse<Beat[] | { beats: Beat[] } | null>(episode.beatPlan, []);
-  const beats = Array.isArray(stored) ? stored : (stored?.beats ?? []);
-  if (beats.length === 0) return null;
-  const half = Math.max(1, Math.ceil(beats.length / 2));
-
+/**
+ * Pure core of the verifier: one brief + one plan (+ the arm's established
+ * locations) → per-directive verdict. Used by BOTH the stored-episode receipt
+ * (verifyBriefCompliance) and the what-if simulator's pre-flight check, so the
+ * two can never drift.
+ */
+export async function verifyPlanAgainstBrief(
+  brief: WriterBrief,
+  beats: Beat[],
+  knownLocations: Set<string>
+): Promise<VerifyOutcome> {
   const rows: ComplianceRow[] = [];
 
   for (const d of brief.directives) {
@@ -102,7 +93,7 @@ export async function verifyBriefCompliance(episodeId: string): Promise<BriefCom
         break;
       }
       case 'HOOK': {
-        const honored = mentions(textOf(beats[0]), d.check.cliffhangerTitle);
+        const honored = beats.length > 0 && mentions(textOf(beats[0]), d.check.cliffhangerTitle);
         rows.push({
           kind: d.kind,
           title: d.title,
@@ -116,6 +107,7 @@ export async function verifyBriefCompliance(episodeId: string): Promise<BriefCom
       }
       case 'PROTECT_BEAT': {
         const cap = d.check.maxFirstHalfSec;
+        const half = Math.max(1, Math.ceil(beats.length / 2));
         const firstHalf = beats.slice(0, half);
         const longest = Math.max(...firstHalf.map((b) => b.durationSec));
         const overIdx = firstHalf.findIndex((b) => b.durationSec > cap);
@@ -132,6 +124,7 @@ export async function verifyBriefCompliance(episodeId: string): Promise<BriefCom
         break;
       }
       case 'COHORT': {
+        const half = Math.max(1, Math.ceil(beats.length / 2));
         const firstHalf = beats.slice(0, half);
         const densities = firstHalf.map((b) => b.dialogue.length + b.props.length);
         const best = Math.max(...densities);
@@ -149,8 +142,7 @@ export async function verifyBriefCompliance(episodeId: string): Promise<BriefCom
         break;
       }
       case 'ECONOMY': {
-        const known = await knownLocationsForArm(episode.showId, episode.arm);
-        const reused = beats.filter((b) => known.has(b.location)).length;
+        const reused = beats.filter((b) => knownLocations.has(b.location)).length;
         const ratio = reused / Math.max(1, beats.length);
         const honored = ratio >= d.check.reuseRatioMin;
         rows.push({
@@ -170,16 +162,52 @@ export async function verifyBriefCompliance(episodeId: string): Promise<BriefCom
   const honoredCheckable = rows.filter((r) => !r.informational && r.honored).length;
 
   return {
-    episodeId,
-    episodeNumber: episode.number,
-    arm: episode.arm,
-    briefFingerprint: episode.briefFingerprint,
-    cohort: brief.cohort ?? null,
     rows,
     honoredCount,
     honoredCheckable,
     checkable,
     total: rows.length,
     allHonored: checkable > 0 && honoredCount === rows.length,
+  };
+}
+
+function textOf(b: Beat): string {
+  return [b.title, ...b.dialogue.map((d) => d.line), b.purpose].join(' ');
+}
+
+/** loose natural-language containment: normalize, then substring match */
+function mentions(haystack: string, needle: string): boolean {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  return norm(haystack).includes(norm(needle));
+}
+
+export async function verifyBriefCompliance(episodeId: string): Promise<BriefCompliance | null> {
+  const episode = await db.episode.findUnique({ where: { id: episodeId } });
+  if (!episode || !episode.briefJson) return null;
+  const brief = jparse<(WriterBrief & { directives: (BriefDirective & { check?: BriefCheck })[] }) | null>(
+    episode.briefJson,
+    null
+  );
+  if (!brief) return null;
+
+  const stored = jparse<Beat[] | { beats: Beat[] } | null>(episode.beatPlan, []);
+  const beats = Array.isArray(stored) ? stored : (stored?.beats ?? []);
+  if (beats.length === 0) return null;
+
+  const known = await knownLocationsForArm(episode.showId, episode.arm);
+  const outcome = await verifyPlanAgainstBrief(brief, beats, known);
+
+  return {
+    episodeId,
+    episodeNumber: episode.number,
+    arm: episode.arm,
+    briefFingerprint: episode.briefFingerprint,
+    cohort: brief.cohort ?? null,
+    ...outcome,
   };
 }

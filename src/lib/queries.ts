@@ -322,6 +322,79 @@ export interface BriefComplianceData {
   allHonored: boolean;
 }
 
+/* ------------------------------- what-if ---------------------------------- */
+
+export interface WhatIfCurvePoint {
+  beat: number;
+  type: string;
+  retention: number;
+  baseline: number;
+}
+
+export interface WhatIfDrop {
+  beat: number;
+  viewers: number;
+  type: string;
+  title: string;
+}
+
+export interface WhatIfSegment {
+  archetype: string;
+  keepRate: number;
+  n: number;
+  baselineKeepRate: number;
+}
+
+export interface WhatIfResult {
+  showId: string;
+  arm: string;
+  episodeNumber: number;
+  beatCount: number;
+  totalDurationSec: number;
+  briefFingerprint: string;
+  briefCohort: string | null;
+  fingerprint: string;
+  compliance: {
+    rows: BriefComplianceData['rows'];
+    honoredCheckable: number;
+    checkable: number;
+    total: number;
+    allHonored: boolean;
+  };
+  simulation: {
+    viewers: number;
+    keepRate: number;
+    meanSatisfaction: number;
+    curve: WhatIfCurvePoint[];
+    drops: WhatIfDrop[];
+    segments: WhatIfSegment[];
+  };
+  baseline: {
+    episodeNumber: number;
+    keepRate: number;
+    meanSatisfaction: number;
+    panel: number;
+  };
+  delta: {
+    keepRatePts: number;
+    satisfaction: number;
+  };
+  grade: 'STRONG' | 'PROMISING' | 'MIXED' | 'WEAK';
+}
+
+export interface WhatIfTemplate {
+  arm: string;
+  templateFrom: { episodeId: string; episodeNumber: number };
+  beats: Beat[];
+  brief: WriterBriefData | null;
+}
+
+export interface BriefBundleData {
+  markdown: string;
+  filename: string;
+  sections: { label: string; fingerprint: string; directives: number }[];
+}
+
 /* ---------------------------------- queries --------------------------------- */
 
 export function useHealth() {
@@ -451,6 +524,35 @@ export function useBriefCompliance(episodeId: string | null) {
     enabled: Boolean(episodeId),
     refetchInterval: (query) => (query.state.error ? false : 4000),
     retry: false,
+  });
+}
+
+/** What-if simulator template — the last screened episode's plan as the editable starting point. */
+export function useWhatIfTemplate(showId: string | null, arm: string) {
+  return useQuery({
+    queryKey: ['what-if-template', showId, arm],
+    queryFn: () => j<{ template: WhatIfTemplate }>(`/api/shows/${showId}/what-if?arm=${arm}`),
+    enabled: Boolean(showId),
+    staleTime: 30_000,
+  });
+}
+
+/** What-if pre-flight dry-run — compliance + panel projection, zero spend. Manual fetch only. */
+export function useRunWhatIf(showId: string | null) {
+  return useMutation({
+    mutationFn: async (body: { arm: string; plan: unknown; cohort?: string }) => {
+      const { url, init } = post(`/api/shows/${showId}/what-if`, body);
+      return j<{ result: WhatIfResult }>(url, init);
+    },
+  });
+}
+
+/** Writers-room brief bundle — every lens of the current brief as one markdown document. */
+export function useBriefBundle(showId: string | null) {
+  return useMutation({
+    mutationFn: async (arm: string) => {
+      return j<{ bundle: BriefBundleData }>(`/api/shows/${showId}/brief-bundle?arm=${arm}`);
+    },
   });
 }
 

@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import { Anchor, GitBranch, Lightbulb, TrendingDown, Users } from 'lucide-react';
 import { WritersBrief } from './writers-brief';
+import { WhatIfSimulator } from './what-if-simulator';
 
 /**
  * Season arc planner — the writers-room view across episodes.
@@ -474,6 +475,8 @@ export function ArcTab({ showId, mode }: { showId: string; mode: string }) {
   return (
     <div className="grid gap-4">
       <WritersBrief showId={showId} arm={arm} />
+
+      <WhatIfSimulator showId={showId} arm={arm} />
 
       <Card>
         <CardHeader className="pb-2">

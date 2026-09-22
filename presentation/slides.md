@@ -184,7 +184,7 @@ evidence → **40-viewer** micro-screen · Thompson draw over Beta posteriors ·
 
 ## 11 · Stack & deployment — one codebase, two clouds
 
-**Stack:** Next.js 16 App Router · TypeScript strict — single 6-tab dashboard (Episodes · **Arc** · Studio · Audience · Analytics · Experiment), 23 REST endpoints · Prisma + SQLite (11 models) · shadcn/ui + Tailwind 4 + Recharts · pure-TS seeded engines (mulberry32, FSRS memory, Kaplan–Meier, Thompson).
+**Stack:** Next.js 16 App Router · TypeScript strict — single 6-tab dashboard (Episodes · **Arc** · Studio · Audience · Analytics · Experiment), 29 REST endpoints · Prisma + SQLite (12 models) · shadcn/ui + Tailwind 4 + Recharts · pure-TS seeded engines (mulberry32, FSRS memory, Kaplan–Meier, Thompson).
 
 **Provider parity** — the only line that changes: `AI_PROVIDER=sandbox|qwen`
 
@@ -198,7 +198,7 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 
 ---
 
-## 12 · Demo flow — three minutes, seven beats
+## 12 · Demo flow — three minutes, eight beats
 
 | Time | Beat | What the judge sees |
 |---|---|---|
@@ -208,7 +208,8 @@ Models: `qwen3.7-max` (WRITER) · `qwen-plus` (FAST) · `qwen-vl-plus` (VISION) 
 | 1:20 | **TWIST** | 200 personas screen Ep1: retention curve draws, comment wall fills, memory inspector decays. |
 | 1:50 | **ARC** | Season-arc board: writer tension vs measured engagement, open loops decaying, hook payoff graded — then the **writer’s brief** for the next episode. |
 | 2:20 | **PAYOFF** | **“Write Ep4 from this brief”** → writer honors it → **LOOP CLOSED · 3/3 HONORED** receipt; season extended live. Determinism receipt re-verifies 8 episodes byte-for-byte, signed. |
-| 2:45 | **CLIFFHANGER** | Thompson picks the variant; dual-arm table lands (honest verdict, cost edge −12%); close on “measure attention, not output.” |
+| 2:45 | **WHAT-IF** | The judge’s turn: paste any plan into the **what-if simulator** — 200 personas dry-run it in ~200 ms, grade drops, check the contracts — **$0.000 spent, nothing written**. Iterate before the dollars move. |
+| 3:00 | **CLIFFHANGER** | Thompson picks the variant; dual-arm table lands (honest verdict, cost edge −12%); close on “measure attention, not output.” |
 
 Single screen recording, one take — ends on the live dashboard, DUAL mode running.
 

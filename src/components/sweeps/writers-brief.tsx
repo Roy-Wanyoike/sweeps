@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import {
   BriefComplianceData,
   EpisodeRow,
+  useBriefBundle,
   useBriefCompliance,
   useExtendSeason,
   useRunEpisode,
@@ -25,6 +26,7 @@ import {
   Copy,
   Download,
   Eye,
+  FileStack,
   FileText,
   Info,
   Loader2,
@@ -175,6 +177,7 @@ export function WritersBrief({ showId, arm }: { showId: string; arm: string }) {
 
   const runEpisode = useRunEpisode(showId);
   const extendSeason = useExtendSeason(showId);
+  const briefBundle = useBriefBundle(showId);
   const [extending, setExtending] = useState(false);
 
   // the episode this brief targets — compliance receipt once it exists with a plan.
@@ -238,6 +241,24 @@ export function WritersBrief({ showId, arm }: { showId: string; arm: string }) {
     toast.success('Brief downloaded', { description: `Episode ${brief.nextEpisodeNumber} outline directives (arm ${brief.arm}).` });
   };
 
+  const downloadBundle = async () => {
+    try {
+      const { bundle } = await briefBundle.mutateAsync(brief.arm);
+      const blob = new Blob([bundle.markdown], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = bundle.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Brief bundle downloaded', {
+        description: `${bundle.sections.length} lens sections — whole panel + every cohort lens, fingerprints included.`,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Bundle export failed');
+    }
+  };
+
   const writeToWriter = async () => {
     try {
       if (episodeCount < brief.nextEpisodeNumber) {
@@ -297,6 +318,16 @@ export function WritersBrief({ showId, arm }: { showId: string; arm: string }) {
             </button>
             <Button size="sm" variant="ghost" onClick={copyBrief} title="Copy as markdown">
               <Copy className="h-3.5 w-3.5" aria-hidden /> Copy
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={downloadBundle}
+              disabled={briefBundle.isPending}
+              title={`Download ALL lens briefs as one markdown document${brief.lenses.length ? ` (${brief.lenses.length + 1} sections)` : ''}`}
+            >
+              {briefBundle.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <FileStack className="h-3.5 w-3.5" aria-hidden />}
+              All lenses
             </Button>
             <Button size="sm" variant="outline" onClick={downloadBrief} title="Download as .md">
               <Download className="h-3.5 w-3.5" aria-hidden /> Brief
