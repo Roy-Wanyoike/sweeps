@@ -163,3 +163,28 @@
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: oklch(0.666 0.179 58 / 0.6);
 }
+
+/* film-strip sprocket accent — used under the header */
+.film-strip {
+  height: 6px;
+  background-image: repeating-linear-gradient(
+    to right,
+    oklch(0.666 0.179 58 / 0.22) 0 10px,
+    transparent 10px 20px
+  );
+}
+
+/* subtle lift for interactive cards */
+.card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px oklch(0.216 0.02 60 / 0.08);
+}
+
+/* keyboard focus ring for custom clickable tiles */
+.tile-focus:focus-visible {
+  outline: 2px solid oklch(0.666 0.179 58);
+  outline-offset: 2px;
+}

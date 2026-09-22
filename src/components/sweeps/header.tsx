@@ -5,19 +5,63 @@ import { useSweeps } from '@/lib/store';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreateShowDialog } from './create-show-dialog';
 import { Clapperboard, Moon, PlayCircle, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 
-export function Header() {
+const STAGE_COLORS: Record<string, string> = {
+  RENDER: 'bg-primary',
+  WRITER: 'bg-rose-500',
+  AUDIENCE: 'bg-teal-500',
+  OPTIMIZER: 'bg-emerald-500',
+  BIBLE: 'bg-orange-400',
+  ANALYTICS: 'bg-neutral-400',
+};
+const STAGE_ORDER = ['RENDER', 'WRITER', 'AUDIENCE', 'OPTIMIZER', 'BIBLE', 'ANALYTICS'];
+
+function StageBudgetBar({
+  byStage,
+  totalUsd,
+  budgetUsd,
+}: {
+  byStage: Record<string, number>;
+  totalUsd: number;
+  budgetUsd: number;
+}) {
+  if (budgetUsd <= 0) return null;
+  const stages = STAGE_ORDER.filter((s) => (byStage[s] ?? 0) > 0);
+  if (stages.length === 0) return <Progress value={0} className="h-2" />;
+  return (
+    <div
+      className="flex h-2 w-full gap-px overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+      aria-valuenow={Math.round((totalUsd / budgetUsd) * 100)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label="Budget used by stage"
+    >
+      {stages.map((s) => (
+        <div
+          key={s}
+          className={`${STAGE_COLORS[s] ?? 'bg-neutral-400'} h-full transition-all`}
+          style={{ width: `${Math.min(100, ((byStage[s] ?? 0) / budgetUsd) * 100)}%` }}
+          title={`${s}: $${(byStage[s] ?? 0).toFixed(3)}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function Header({ onShortcuts }: { onShortcuts?: () => void }) {
   const { data: health } = useHealth();
   const { data: showsData } = useShows();
   const activeShowId = useSweeps((s) => s.activeShowId);
   const setShow = useSweeps((s) => s.setShow);
   const { data: show } = useShow(activeShowId);
-  const { data: ledger } = useLedger(activeShowId);
+  const { data: ledger, isLoading: ledgerLoading } = useLedger(activeShowId);
   const { data: analytics } = useShowAnalytics(activeShowId);
   const runDemo = useRunDemo(activeShowId);
   const { theme, setTheme } = useTheme();
@@ -30,7 +74,7 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-rose-500 text-primary-foreground shadow-sm">
             <Clapperboard className="h-5 w-5" aria-hidden />
           </div>
           <div className="leading-tight">
@@ -54,14 +98,23 @@ export function Header() {
           </Select>
         </div>
 
-        <div className="hidden min-w-[140px] max-w-[220px] flex-1 md:block" aria-label={`Budget used ${budgetPct.toFixed(0)} percent`}>
-          <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
-            <span>
-              ${ledger?.totalUsd.toFixed(3) ?? '0.000'} / ${ledger?.budgetUsd.toFixed(2) ?? '—'}
-            </span>
-            <span>{budgetPct.toFixed(0)}%</span>
-          </div>
-          <Progress value={budgetPct} className="h-2" />
+        <div className="hidden min-w-[170px] max-w-[230px] flex-1 md:block" aria-label={`Budget used ${budgetPct.toFixed(0)} percent`}>
+          {ledgerLoading || !ledger ? (
+            <div className="grid gap-1.5">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-2 w-full" />
+            </div>
+          ) : (
+            <>
+              <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
+                <span>
+                  ${ledger.totalUsd.toFixed(3)} / ${ledger.budgetUsd.toFixed(2)}
+                </span>
+                <span className={budgetPct >= 90 ? 'font-semibold text-destructive' : ''}>{budgetPct.toFixed(0)}%</span>
+              </div>
+              <StageBudgetBar byStage={ledger.byStage} totalUsd={ledger.totalUsd} budgetUsd={ledger.budgetUsd} />
+            </>
+          )}
         </div>
 
         <div className="ml-auto flex items-center gap-2">
@@ -82,6 +135,7 @@ export function Header() {
               })
             }
             disabled={!activeShowId || runDemo.isPending}
+            title="Run the full dual-arm demo (Shift+D)"
           >
             <PlayCircle className="mr-1 h-4 w-4" aria-hidden />
             Run Full Demo
@@ -91,18 +145,20 @@ export function Header() {
             size="icon"
             variant="ghost"
             aria-label="Toggle theme"
+            title="Toggle theme (T)"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           >
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
         </div>
       </div>
+      <div className="film-strip" aria-hidden />
       {analytics && analytics.episodes.length > 0 && (
         <div className="border-t bg-primary/5">
           <div className="mx-auto flex max-w-7xl gap-6 overflow-x-auto px-4 py-1.5 text-[11px] text-muted-foreground scrollbar-thin">
             {analytics.episodes.map((m) => (
               <span key={m.episodeId} className="whitespace-nowrap">
-                <span className="font-semibold text-foreground">
+                <span className={`font-semibold ${m.arm === 'B' ? 'text-primary' : 'text-foreground'}`}>
                   Ep{m.number} ({m.arm})
                 </span>{' '}
                 retention {(m.overall * 100).toFixed(0)}% · ${m.costPerRetainedViewer.toFixed(3)} per retained viewer

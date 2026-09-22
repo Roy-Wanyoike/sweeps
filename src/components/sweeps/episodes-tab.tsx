@@ -13,13 +13,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlayerDialog } from './player-dialog';
 import {
   AlertTriangle,
+  Braces,
   CheckCircle2,
   CircleDashed,
   Clapperboard,
+  Download,
+  FileText,
   FlaskConical,
   Loader2,
   Play,
@@ -179,11 +188,32 @@ export function EpisodesTab({ detail }: { detail: ShowDetail }) {
           <>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between text-base">
+                <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
                   <span>
                     Episode {ep.episode.number} · arm {ep.episode.arm}
                   </span>
-                  <Badge className={STATUS_STYLES[ep.episode.status] ?? ''}>{ep.episode.status}</Badge>
+                  <span className="flex items-center gap-2">
+                    <Badge className={STATUS_STYLES[ep.episode.status] ?? ''}>{ep.episode.status}</Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline" disabled={ep.episode.status !== 'DONE' && ep.episode.status !== 'RENDER_PARTIAL'} title="Download the episode as a portable artifact">
+                          <Download className="mr-1 h-3.5 w-3.5" aria-hidden /> Export
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <a href={`/api/episodes/${ep.episode.id}/export?format=md`} download>
+                            <FileText className="mr-2 h-4 w-4" aria-hidden /> Markdown script (.md)
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <a href={`/api/episodes/${ep.episode.id}/export?format=json`} download>
+                            <Braces className="mr-2 h-4 w-4" aria-hidden /> Full data (.json)
+                          </a>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </span>
                 </CardTitle>
                 <CardDescription>{ep.plan?.summary ?? 'Writing…'}</CardDescription>
               </CardHeader>
@@ -327,16 +357,18 @@ function CompileReportCard({
 }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
+      <CardHeader className="pb-2">
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="h-4 w-4 text-primary" aria-hidden /> Continuity Compiler
           </CardTitle>
           <CardDescription>8 deterministic rules · zero AI · runs before any generation spend</CardDescription>
         </div>
-        <Button size="sm" variant="ghost" onClick={onRecompile}>
-          Re-compile
-        </Button>
+        <div data-slot="card-action">
+          <Button size="sm" variant="outline" onClick={onRecompile} title="Re-run the 8 deterministic rules against this script">
+            <ShieldCheck className="mr-1 h-3.5 w-3.5" aria-hidden /> Re-compile
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {!report ? (
@@ -354,16 +386,18 @@ function StoryboardStrip({ detail }: { detail: EpisodeDetail }) {
   if (!detail.beats.length) return null;
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
+      <CardHeader className="pb-2">
         <div>
           <CardTitle className="text-base">Storyboard · {detail.beats.length} beats</CardTitle>
           <CardDescription>
             AI stills on key beats, deterministic cards elsewhere · click to play (Ken Burns)
           </CardDescription>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setPlayerOpen(true)}>
-          <Play className="mr-1 h-4 w-4" aria-hidden /> Play
-        </Button>
+        <div data-slot="card-action">
+          <Button size="sm" variant="outline" onClick={() => setPlayerOpen(true)}>
+            <Play className="mr-1 h-4 w-4" aria-hidden /> Play
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">

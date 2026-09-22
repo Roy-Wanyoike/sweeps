@@ -52,6 +52,22 @@ bun run dev       # http://localhost:3000
 Then: **Create the demo show** (or New Show with any premise) → **Run Full Demo**.
 DUAL mode runs Ep1A, Ep1B, Ep2A, Ep2B, Ep3A, Ep3B automatically.
 
+## Power features
+
+- **Keyboard-driven studio.** `1–5` switch tabs, `A`/`B` select arm, `E` runs the next episode,
+  `Shift+D` launches the full dual-arm demo, `T` toggles theme, `?` opens the shortcut cheat-sheet.
+- **Portable episode artifacts.** Every finished episode exports as a **Markdown script** (beat plan,
+  full dialogue, compile report, per-beat engagement) or **JSON** payload —
+  `GET /api/episodes/:id/export?format=md|json`, or the Export button on the Episodes tab.
+- **Analytics export.** Retention curves download as CSV with one click for external analysis.
+- **Beat retention heatmap.** Episodes × beats matrix; the paired premiere renders as two identical
+  rows — visual proof of the paired design — while arm-B rows stay visibly warmer late in episodes.
+- **Audience exploration.** Search/filter the 200 persona viewers by name or archetype, open any
+  viewer's arm-scoped memory inspector (FSRS-style R bars + watch history), and read the
+  sentiment-tinted reaction wall with drop-point attribution.
+- **Stage-aware budget bar.** The header budget meter is segmented by pipeline stage
+  (render/writer/audience/optimizer), so governance caps are visible at a glance.
+
 ## Experimental design (why the demo is trustworthy)
 
 - **Paired premiere.** In DUAL mode, Episode 1 is generated once and *reused verbatim* in both

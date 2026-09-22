@@ -5,10 +5,10 @@ import { ShowDetail, Beat as QueriesBeat, useEpisode, useMetrics, usePersonas, u
 import { useSweeps } from '@/lib/store';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Brain, Eye, MessageSquare, Users } from 'lucide-react';
-
+import { Brain, Eye, MessageSquare, Search, Users } from 'lucide-react';
 
 function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   const s = sentiment ?? 'NEUTRAL';
@@ -27,12 +27,28 @@ function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   );
 }
 
+const AVATAR_STYLES: Record<string, string> = {
+  POSITIVE: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+  NEGATIVE: 'bg-rose-500/15 text-rose-700 dark:text-rose-400',
+  NEUTRAL: 'bg-secondary text-secondary-foreground',
+};
+
+function initials(name: string): string {
+  return name
+    .split(/[.\s_]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
 export function AudienceTab({ detail }: { detail: ShowDetail }) {
   const selectedViewerId = useSweeps((s) => s.selectedViewerId);
   const selectViewer = useSweeps((s) => s.selectViewer);
   const doneEpisodes = detail.episodes.filter((e) => e.status === 'DONE' || e.status === 'ANALYZING');
   const [epId, setEpId] = useState<string | null>(doneEpisodes[doneEpisodes.length - 1]?.id ?? null);
   const currentEpId = epId ?? doneEpisodes[doneEpisodes.length - 1]?.id ?? null;
+  const [query, setQuery] = useState('');
 
   const { data: epData } = useEpisode(currentEpId);
   const { data: reactions } = useReactions(currentEpId);
@@ -50,10 +66,17 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [personas]);
 
+  const filteredViewers = useMemo(() => {
+    const viewers = personas?.viewers ?? [];
+    const q = query.trim().toLowerCase();
+    if (!q) return viewers;
+    return viewers.filter((v) => v.name.toLowerCase().includes(q) || v.archetype.toLowerCase().includes(q));
+  }, [personas, query]);
+
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-2">
-        <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
+        <CardHeader className="pb-3">
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <MessageSquare className="h-4 w-4 text-primary" aria-hidden /> Reaction wall
@@ -62,38 +85,61 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
               Sampled viewers comment in-voice while watching — with sentiment and drop-point attribution
             </CardDescription>
           </div>
-          <Select value={currentEpId ?? undefined} onValueChange={setEpId}>
-            <SelectTrigger size="sm" className="w-40" aria-label="Select episode">
-              <SelectValue placeholder="Episode" />
-            </SelectTrigger>
-            <SelectContent>
-              {doneEpisodes.map((e) => (
-                <SelectItem key={e.id} value={e.id}>
-                  Ep{e.number} ({e.arm})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div data-slot="card-action">
+            <Select value={currentEpId ?? undefined} onValueChange={setEpId}>
+              <SelectTrigger size="sm" className="w-40" aria-label="Select episode">
+                <SelectValue placeholder="Episode" />
+              </SelectTrigger>
+              <SelectContent>
+                {doneEpisodes.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    Ep{e.number} ({e.arm})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <ScrollArea className="max-h-96 pr-3">
-            <div className="grid gap-2">
+            <div className="grid gap-2.5">
               {(reactions?.reactions ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground">No reactions yet — screen an episode first.</p>
               )}
-              {(reactions?.reactions ?? []).map((r, i) => (
-                <div key={i} className="rounded-lg border p-2.5">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">{r.name}</span>
-                    <Badge variant="outline" className="text-[10px]">{r.archetype}</Badge>
-                    <SentimentBadge sentiment={r.sentiment} />
-                    {!r.keepWatching && r.dropAtBeat !== null && (
-                      <span className="text-rose-600 dark:text-rose-400">dropped @ beat {r.dropAtBeat}{beatTitle(r.dropAtBeat) ? ` — “${beatTitle(r.dropAtBeat)}”` : ''}</span>
-                    )}
+              {(reactions?.reactions ?? []).map((r, i) => {
+                const s = r.sentiment ?? 'NEUTRAL';
+                return (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <div
+                      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${AVATAR_STYLES[s]}`}
+                      aria-hidden
+                    >
+                      {initials(r.name)}
+                    </div>
+                    <div
+                      className={`relative flex-1 rounded-xl rounded-tl-sm border bg-gradient-to-br p-2.5 ${
+                        s === 'NEGATIVE'
+                          ? 'border-rose-500/25 from-rose-500/5 to-transparent'
+                          : s === 'POSITIVE'
+                            ? 'border-emerald-500/25 from-emerald-500/5 to-transparent'
+                            : 'from-muted/50 to-transparent'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">{r.name}</span>
+                        <Badge variant="outline" className="text-[10px]">{r.archetype}</Badge>
+                        <SentimentBadge sentiment={r.sentiment} />
+                        {!r.keepWatching && r.dropAtBeat !== null && (
+                          <span className="rounded bg-rose-500/10 px-1.5 py-0.5 font-medium text-rose-600 dark:text-rose-400">
+                            dropped @ beat {r.dropAtBeat}{beatTitle(r.dropAtBeat) ? ` — “${beatTitle(r.dropAtBeat)}”` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed">{r.comment}</p>
+                    </div>
                   </div>
-                  <p className="mt-1 text-sm">{r.comment}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </ScrollArea>
         </CardContent>
@@ -110,27 +156,48 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="relative mb-2">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name or archetype…"
+                className="h-8 pl-8 text-xs"
+                aria-label="Filter viewers"
+              />
+            </div>
             <div className="mb-2 flex flex-wrap gap-1">
               {archetypeCounts.map(([a, n]) => (
-                <Badge key={a} variant="secondary" className="text-[10px]">
+                <button
+                  key={a}
+                  onClick={() => setQuery(query === a ? '' : a)}
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                    query === a ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                  }`}
+                  aria-pressed={query === a}
+                  title={`Filter by ${a}`}
+                >
                   {a} ×{n}
-                </Badge>
+                </button>
               ))}
             </div>
             <ScrollArea className="max-h-56 pr-2">
               <div className="grid grid-cols-2 gap-1.5">
-                {(personas?.viewers ?? []).map((v) => (
+                {filteredViewers.map((v) => (
                   <button
                     key={v.id}
                     onClick={() => selectViewer(v.id)}
-                    className={`rounded-md border px-2 py-1.5 text-left text-xs transition-colors hover:border-primary/60 ${
-                      selectedViewerId === v.id ? 'border-primary bg-primary/5' : ''
+                    className={`rounded-md border px-2 py-1.5 text-left text-xs transition-all hover:border-primary/60 hover:shadow-sm ${
+                      selectedViewerId === v.id ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : ''
                     }`}
                   >
                     <div className="truncate font-medium">{v.name}</div>
                     <div className="truncate text-[10px] text-muted-foreground">{v.archetype}</div>
                   </button>
                 ))}
+                {filteredViewers.length === 0 && (
+                  <p className="col-span-2 py-4 text-center text-xs text-muted-foreground">No viewers match “{query}”.</p>
+                )}
               </div>
             </ScrollArea>
           </CardContent>
@@ -148,7 +215,10 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
               <p className="text-sm text-muted-foreground">Select a viewer to inspect their memory.</p>
             ) : (
               <div className="grid gap-2">
-                <div className="text-sm font-semibold">{viewer.viewer.name}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold">{viewer.viewer.name}</div>
+                  <Badge variant="outline" className="text-[10px]">{viewer.viewer.archetype}</Badge>
+                </div>
                 <ScrollArea className="max-h-56 pr-2">
                   <div className="grid gap-1.5">
                     {viewer.memories.map((m) => (
@@ -201,4 +271,3 @@ export function AudienceTab({ detail }: { detail: ShowDetail }) {
     </div>
   );
 }
-
