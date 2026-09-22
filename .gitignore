@@ -70,3 +70,5 @@ server.log
 /public/generated/**
 .DS_Store
 *.pid
+
+/.tmpdebug/
