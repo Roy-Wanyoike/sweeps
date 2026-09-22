@@ -52,3 +52,21 @@ prompt
 server.log
 # Skills directory
 /skills/
+# --- sweeps repo hygiene: only publish what's necessary ---
+/upload/
+/download/
+/tool-results/
+/db/*.db
+/db/*.db-journal
+/db/*.sqlite*
+/worklog.md
+/SWEEPS_MASTER_BUILD_PROMPT.md
+/Caddyfile
+/examples/
+/.zscripts/
+/tests/
+/mini-services/
+/public/generated/
+/public/generated/**
+.DS_Store
+*.pid

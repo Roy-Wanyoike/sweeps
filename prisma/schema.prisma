@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,20 +7,167 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Show {
+  id           String        @id @default(cuid())
+  title        String
+  premise      String
+  genre        String        @default("drama")
+  visualStyle  String        @default("cinematic")
+  mode         String        @default("DUAL") // 'SINGLE' | 'DUAL' (DUAL = control arm A + treatment arm B)
+  episodeCount Int           @default(3)
+  budgetUsd    Float         @default(5.0)
+  panelSize    Int           @default(200)
+  seed         Int
+  status       String        @default("SETUP") // SETUP | RUNNING | DONE
+  lore         String? // JSON: committed lore { key: value } — compiler source of truth
+  createdAt    DateTime      @default(now())
+  characters   Character[]
+  entities     WorldEntity[]
+  episodes     Episode[]
+  viewers      Viewer[]
+  experiments  Experiment[]
+  costs        CostEntry[]
 }
 
-model Post {
+model Character {
+  id          String  @id @default(cuid())
+  showId      String
+  show        Show    @relation(fields: [showId], references: [id])
+  name        String
+  role        String
+  appearance  String
+  personality String
+  voiceStyle  String
+  refImage    String?
+  attrs       String  @default("{}") // JSON structured attributes for C6-LORE
+}
+
+model WorldEntity {
+  id       String  @id @default(cuid())
+  showId   String
+  show     Show    @relation(fields: [showId], references: [id])
+  kind     String // 'LOCATION' | 'PROP'
+  name     String
+  desc     String
+  refImage String?
+}
+
+model Episode {
+  id             String     @id @default(cuid())
+  showId         String
+  show           Show       @relation(fields: [showId], references: [id])
+  number         Int
+  arm            String     @default("A") // 'A' control | 'B' treatment
+  status         String     @default("DRAFT")
+  // DRAFT|WRITING|COMPILING|COMPILE_FAILED|RENDERING|RENDER_PARTIAL|SCREENING|ANALYZING|DONE
+  beatPlan       String? // JSON Beat[]
+  compileReport  String? // JSON CompileReport
+  summary        String?
+  repairLoops    Int        @default(0)
+  spendUsd       Float      @default(0)
+  retentionScore Float?
+  createdAt      DateTime   @default(now())
+  beats          Beat[]
+  screenings     Screening[]
+  jobLogs        JobLog[]
+
+  @@unique([showId, number, arm])
+}
+
+model Beat {
+  id            String   @id @default(cuid())
+  episodeId     String
+  episode       Episode  @relation(fields: [episodeId], references: [id])
+  index         Int
+  type          String // HOOK|SETUP|ESCALATION|REVEAL|TWIST|CONFLICT|BREATH|CLIFFHANGER
+  title         String
+  payload       String // JSON: full Beat contract
+  compileStatus String?
+  renderStatus  String   @default("PENDING") // PENDING|STILL|CARD|VIDEO|FAILED|SKIPPED
+  stillPath     String?
+  videoPath     String?
+  audioPath     String?
+  estCostUsd    Float    @default(0)
+  engagement    Float?
+  dropCount     Int      @default(0)
+}
+
+model Viewer {
+  id         String       @id @default(cuid())
+  showId     String
+  show       Show         @relation(fields: [showId], references: [id])
+  name       String
+  archetype  String
+  persona    String // JSON ViewerPersona
+  seed       Int
+  memories   ViewerMemory[]
+  screenings Screening[]
+}
+
+model ViewerMemory {
+  id         String   @id @default(cuid())
+  viewerId   String
+  viewer     Viewer   @relation(fields: [viewerId], references: [id])
+  key        String
+  content    String
+  stability  Float    @default(0.5) // FSRS-inspired: grows on re-exposure
+  lastSeenEp Int      @default(1)
+  lastSeenAt DateTime @default(now())
+
+  @@unique([viewerId, key])
+}
+
+model Screening {
+  id           String  @id @default(cuid())
+  episodeId    String
+  episode      Episode @relation(fields: [episodeId], references: [id])
+  viewerId     String
+  viewer       Viewer  @relation(fields: [viewerId], references: [id])
+  seed         Int
+  keepWatching Boolean
+  dropAtBeat   Int?
+  satisfaction Float
+  events       String // JSON [{beat, s, S, recalled}]
+  comment      String?
+  sentiment    String? // POSITIVE|NEUTRAL|NEGATIVE
+
+  @@unique([episodeId, viewerId])
+}
+
+model Experiment {
+  id        String @id @default(cuid())
+  showId    String
+  show      Show   @relation(fields: [showId], references: [id])
+  epNumber  Int // episode the chosen variant is used in
+  slotIndex Int
+  variantA  String // JSON Beat
+  variantB  String // JSON Beat
+  rewardA   Float?
+  rewardB   Float?
+  chosen    String? // 'A' | 'B'
+  evidence  String? // JSON {n, alpha, beta, rationale}
+}
+
+model CostEntry {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  showId    String
+  show      Show     @relation(fields: [showId], references: [id])
+  episodeId String?
+  stage     String // BIBLE|WRITER|RENDER|AUDIENCE|ANALYTICS|OPTIMIZER
+  model     String
+  kind      String // LLM|IMAGE|VIDEO|TTS
+  tokens    Int      @default(0)
+  costUsd   Float
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+}
+
+model JobLog {
+  id        String   @id @default(cuid())
+  episodeId String?
+  episode   Episode? @relation(fields: [episodeId], references: [id])
+  showId    String?
+  step      String
+  status    String // STARTED|OK|WARN|ERROR
+  detail    String?
+  createdAt DateTime @default(now())
 }

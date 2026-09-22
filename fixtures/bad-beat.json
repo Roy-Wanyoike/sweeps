@@ -1,0 +1,56 @@
+[
+  {
+    "index": 0,
+    "title": "Cold open at the docks",
+    "type": "HOOK",
+    "location": "Dock 7",
+    "timeOfDay": "DAWN",
+    "durationSec": 12,
+    "cast": ["Mara Voss", "Dexter Hale"],
+    "props": [{ "ref": "Stolen Ledger", "action": "INTRODUCE" }],
+    "wardrobe": { "Mara Voss": "trench-grey" },
+    "loreAssertions": [],
+    "visualPrompt": "Two silhouettes meet under a flickering dock lamp, fog rolling in",
+    "dialogue": [
+      { "char": "Mara Voss", "line": "This ledger burns every bridge we have.", "emotion": "tense" }
+    ],
+    "purpose": "Hook: the ledger changes hands",
+    "qualitySelfScore": 0.7
+  },
+  {
+    "index": 1,
+    "title": "Rooftop confession",
+    "type": "ESCALATION",
+    "location": "Rooftop Garden",
+    "timeOfDay": "DAWN",
+    "durationSec": 10,
+    "cast": ["Mara Voss"],
+    "props": [{ "ref": "Silver Pendant", "action": "USE" }],
+    "wardrobe": { "Mara Voss": "trench-grey" },
+    "loreAssertions": [],
+    "visualPrompt": "A lone reporter on a rooftop garden, city waking behind her",
+    "dialogue": [
+      { "char": "Mara Voss", "line": "I was there the night it happened.", "emotion": "hollow" }
+    ],
+    "purpose": "Escalate with a confession",
+    "qualitySelfScore": 0.62
+  },
+  {
+    "index": 2,
+    "title": "The dock burns",
+    "type": "CLIFFHANGER",
+    "location": "Dock 7",
+    "timeOfDay": "NIGHT",
+    "durationSec": 12,
+    "cast": ["Mara Voss", "Dexter Hale"],
+    "props": [{ "ref": "Stolen Ledger", "action": "USE" }],
+    "wardrobe": {},
+    "loreAssertions": [],
+    "visualPrompt": "Firelight on wet concrete as the ledger starts to burn",
+    "dialogue": [
+      { "char": "Dexter Hale", "line": "Some stories are safer as ash.", "emotion": "cold" }
+    ],
+    "purpose": "Cliffhanger: the evidence burns",
+    "qualitySelfScore": 0.75
+  }
+]
