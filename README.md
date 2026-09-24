@@ -42,7 +42,7 @@ Writer Agent ──▶ Continuity Compiler ──▶ Render Crew ──▶ Simul
 - **Pipeline state machine** — `WRITING → COMPILING ⟲(≤3) → RENDERING → SCREENING → ANALYZING →
   DONE`, every step persisted + JobLog'd, crash-safe, resumable, in-process queue.
 
-## Run it
+## Run it Don't kill it
 
 ```bash
 bun run db:push   # sync schema
